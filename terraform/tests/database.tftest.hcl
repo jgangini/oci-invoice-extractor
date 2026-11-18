@@ -40,6 +40,27 @@ run "new_database" {
     autonomous_database_workload = "OLTP"
     access_cidrs                 = "192.0.2.128/32"
   }
+  override_resource {
+    target          = oci_core_vcn.extractor
+    override_during = plan
+    values          = { id = "ocid1.vcn.oc1.test.functions" }
+  }
+  override_resource {
+    target          = oci_database_autonomous_database.invoices[0]
+    override_during = plan
+    values = {
+      is_access_control_enabled = false
+      connection_urls           = [{ apex_url = "https://db.example/ords/apex" }]
+      connection_strings        = [{ profiles = [{ value = "example", tls_authentication = "SERVER", consumer_group = "LOW", host_format = "FQDN", protocol = "TCPS" }] }]
+    }
+  }
+  assert {
+    condition = (
+      oci_database_autonomous_database.invoices[0].is_access_control_enabled == false &&
+      oci_database_autonomous_database.invoices[0].whitelisted_ips == toset(["ocid1.vcn.oc1.test.functions", "192.0.2.128/32"])
+    )
+    error_message = "Serverless must restrict access to the Functions VCN and approved IPv4 networks without enabling the Cloud@Customer ACL flag."
+  }
   assert {
     condition     = oci_database_autonomous_database.invoices[0].db_name == "INVOICESQA" && length(data.oci_database_autonomous_database.existing) == 0
     error_message = "New mode must manage a named database."
