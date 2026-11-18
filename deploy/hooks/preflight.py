@@ -75,6 +75,9 @@ def check_inputs(context):
     inputs = context["inputs"]
     if inputs["autonomous_database_mode"] == "new":
         check_cidrs(inputs["access_cidrs"])
+        secret_inputs = context_file("DEPLOY_STUDIO_SECRETS")["inputs"]
+        if not password_valid(secret_inputs["autonomous_database_admin_password"], "ADMIN"):
+            raise InputError("Use 12 to 30 characters with uppercase, lowercase and a digit for the database admin password.")
     for path in [ROOT / "database" / f"{name}.sql" for name in SQL_FILES] + [ROOT / "apex/f100.sql"]:
         if not path.is_file() or not path.stat().st_size:
             raise InputError(f"Missing installation file: {path.name}.")

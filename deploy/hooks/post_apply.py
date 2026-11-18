@@ -166,16 +166,18 @@ def install(stages):
     cfg = config_for(context["region"])
     operator = inputs["apex_operator"].upper()
     from deploy.hooks.database_target import check_install_target
+    from deploy.hooks.admin_password import configure_admin_password
     secret_inputs = context_file("DEPLOY_STUDIO_SECRETS")["inputs"]
     operator_password = secret_inputs["apex_operator_password"]
     secrets = oci.secrets.SecretsClient(cfg)
     events = oci.events.EventsClient(cfg)
     stages.append("target and Vault verification")
     delivery(events, outputs, outputs["bucket_compartment_id"], False)
-    admin_password = (secret_inputs["autonomous_database_admin_password"] if inputs["autonomous_database_mode"] == "existing"
-                      else read_password(secrets, outputs["admin_secret_ocid"]))
+    admin_password = secret_inputs["autonomous_database_admin_password"]
     runtime_password = read_password(secrets, outputs["runtime_secret_ocid"])
     dsn = outputs["db_dsn"]
+    stages.append("database admin credential setup")
+    configure_admin_password(cfg, inputs["autonomous_database_mode"], outputs, admin_password)
     stages.append("Autonomous Database connection and schema setup")
     with oracledb.connect(user="ADMIN", password=admin_password, dsn=dsn, ssl_server_dn_match=True) as admin:
         check_install_target(admin, context["deployment_id"], reserve=True)

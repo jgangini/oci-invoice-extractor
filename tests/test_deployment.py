@@ -35,7 +35,7 @@ class DeploymentTests(unittest.TestCase):
         fields = {field["name"]: field for field in manifest["form"]["fields"]}
         for mode, create, existing, source in [
             ("bucket_mode", "new_bucket_name", "existing_bucket_name", "oci_active_buckets"),
-            ("autonomous_database_mode", "autonomous_database_name", "existing_autonomous_database_id",
+            ("autonomous_database_mode", "autonomous_database_version", "existing_autonomous_database_id",
              "oci_autonomous_oltp_databases"),
         ]:
             self.assertEqual(fields[mode]["default"], "new")
@@ -45,6 +45,12 @@ class DeploymentTests(unittest.TestCase):
         self.assertTrue({"function_image_ocid", "function_image_digest", "admin_secret_ocid",
                          "runtime_secret_ocid"}.isdisjoint(fields))
         self.assertEqual(fields["access_cidrs"]["label"], "Allowed IP ranges")
+        self.assertEqual(fields["source_prefix"]["visible_when"], {"field": "bucket_mode", "equals": "existing"})
+        self.assertEqual(fields["source_prefix"]["default"], "source/")
+        admin = fields["autonomous_database_admin_password"]
+        self.assertNotIn("visible_when", admin)
+        self.assertEqual(admin["generate_password_when"], {"field": "autonomous_database_mode", "equals": "new"})
+        self.assertEqual(fields["autonomous_database_version"]["default"], "26ai:OLTP")
 
     def test_oracle_statement_delimiters(self):
         script = "create table t (id number);\n/\nbegin\n null;\nend;\n/\n"

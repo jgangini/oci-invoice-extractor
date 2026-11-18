@@ -32,6 +32,10 @@ resource "oci_vault_secret" "database" {
     generation_template = "DBAAS_DEFAULT_PASSWORD"
     passphrase_length   = 24
   }
+  # Vault generates the initial version. Subsequent password versions belong to the credential owner.
+  lifecycle {
+    ignore_changes = [enable_auto_generation, secret_generation_context]
+  }
 }
 
 moved {
@@ -44,8 +48,8 @@ resource "oci_database_autonomous_database" "invoices" {
   compartment_id              = var.compartment_ocid
   db_name                     = upper(var.autonomous_database_name)
   display_name                = var.autonomous_database_name
-  db_workload                 = "OLTP"
-  db_version                  = "26ai"
+  db_workload                 = var.autonomous_database_workload
+  db_version                  = var.autonomous_database_version
   compute_model               = "ECPU"
   compute_count               = 4
   data_storage_size_in_tbs    = 1

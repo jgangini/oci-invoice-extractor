@@ -27,7 +27,7 @@ def find_or_create_repository(artifacts, compartment, name, create):
         return artifacts.get_container_repository(matches[0].id).data
     if create:
         details = oci.artifacts.models.CreateContainerRepositoryDetails(
-            compartment_id=compartment, display_name=name, is_public=False, is_immutable=True)
+            compartment_id=compartment, display_name=name, is_public=False)
         try:
             return artifacts.create_container_repository(details).data
         except oci.exceptions.ServiceError as exc:
@@ -40,9 +40,8 @@ def private_repository(artifacts, compartment, name):
     for attempt in range(12):
         repository = find_or_create_repository(artifacts, compartment, name, create=attempt == 0)
         if repository is not None:
-            if (repository.display_name, repository.compartment_id, repository.is_public,
-                    repository.is_immutable) != (name, compartment, False, True):
-                raise ValueError("Expected a private immutable repository in the selected compartment")
+            if (repository.display_name, repository.compartment_id) != (name, compartment) or repository.is_public is not False:
+                raise ValueError("Expected a private repository in the selected compartment")
             if repository.lifecycle_state == "AVAILABLE":
                 return repository
         if attempt < 11:

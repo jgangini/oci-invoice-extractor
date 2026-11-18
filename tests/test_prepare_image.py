@@ -76,15 +76,15 @@ class PrepareImageTests(unittest.TestCase):
             publish(session, "https://registry.example/v2/ns/name", archive, layout(archive), "a" * 40)
         session.put.assert_not_called()
 
-    def test_private_immutable_repository_created_or_verified_with_get(self):
+    def test_private_repository_uses_supported_create_options_and_verifies_reuse(self):
         api = Mock()
         api.list_container_repositories.return_value.data.items = []
         repo = SimpleNamespace(id="id", compartment_id="target", display_name="repo", is_public=False,
-                               is_immutable=True, lifecycle_state="AVAILABLE")
+                               is_immutable=False, lifecycle_state="AVAILABLE")
         api.create_container_repository.return_value.data = repo
         self.assertIs(private_repository(api, "target", "repo"), repo)
         details = api.create_container_repository.call_args.args[0]
-        self.assertTrue(details.is_immutable)
+        self.assertIsNone(details.is_immutable)
         self.assertFalse(details.is_public)
         api.list_container_repositories.return_value.data.items = [SimpleNamespace(id="id")]
         api.get_container_repository.return_value.data = repo

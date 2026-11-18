@@ -95,7 +95,7 @@
       },
       {
         "id": "database",
-        "title": "Autonomous Database",
+        "title": "Oracle AI Database",
         "items": [
           {
             "kind": "field",
@@ -103,7 +103,7 @@
           },
           {
             "kind": "field",
-            "name": "autonomous_database_name"
+            "name": "autonomous_database_version"
           },
           {
             "kind": "field",
@@ -112,7 +112,13 @@
           {
             "kind": "field",
             "name": "autonomous_database_admin_password"
-          },
+          }
+        ]
+      },
+      {
+        "id": "network",
+        "title": "Network access",
+        "items": [
           {
             "kind": "field",
             "name": "access_cidrs",
@@ -194,12 +200,18 @@
         ]
       },
       {
-        "name": "autonomous_database_name",
-        "label": "New database name",
-        "type": "text",
+        "name": "autonomous_database_version",
+        "label": "Database profile",
+        "type": "select",
         "required": true,
-        "default": "INVOICES",
-        "pattern": "^[A-Za-z][A-Za-z0-9]{0,29}$",
+        "transform": "database_profile",
+        "options": [
+          {
+            "value": "26ai:OLTP",
+            "label": "Oracle AI Database 26ai · Transaction Processing (OLTP) · 4 ECPU · 1 TB"
+          }
+        ],
+        "default": "26ai:OLTP",
         "visible_when": {
           "field": "autonomous_database_mode",
           "equals": "new"
@@ -218,13 +230,14 @@
       },
       {
         "name": "autonomous_database_admin_password",
-        "label": "Database ADMIN password",
+        "label": "Database admin password",
         "type": "password",
         "required": true,
         "secret": true,
-        "visible_when": {
+        "generate_password": true,
+        "generate_password_when": {
           "field": "autonomous_database_mode",
-          "equals": "existing"
+          "equals": "new"
         }
       },
       {
@@ -243,7 +256,11 @@
         "type": "text",
         "required": true,
         "pattern": "^([A-Za-z0-9_\\-]+/)+$",
-        "default": "entrada/"
+        "default": "source/",
+        "visible_when": {
+          "field": "bucket_mode",
+          "equals": "existing"
+        }
       },
       {
         "name": "apex_operator",

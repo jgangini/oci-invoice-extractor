@@ -3,6 +3,15 @@ moved {
   to   = oci_objectstorage_bucket.invoices[0]
 }
 
+resource "oci_objectstorage_object" "source_folder" {
+  count        = var.bucket_mode == "new" ? 1 : 0
+  namespace    = var.objectstorage_namespace
+  bucket       = oci_objectstorage_bucket.invoices[0].name
+  object       = var.source_prefix
+  content      = ""
+  content_type = "application/x-directory"
+}
+
 variable "bucket_mode" {
   type    = string
   default = "new"
