@@ -39,40 +39,72 @@ def password_valid(password, username):
             and all(re.search(pattern, password) for pattern in ("[a-z]", "[A-Z]", "[0-9]")))
 
 
+def check_cidrs(value):
+    try:
+        networks = [ipaddress.ip_network(item.strip()) for item in value.split(",")]
+    except ValueError:
+        raise InputError("Enter public IPv4 ranges, for example an address followed by /32.") from None
+    if any(net.version != 4 or net.prefixlen < 24 or not net.is_global for net in networks):
+        raise InputError("Allowed IP ranges must be public IPv4 networks from /24 to /32.")
+
+
+def check_bucket(client, context):
+    inputs = context["inputs"]
+    namespace = client.get_namespace().data
+    existing = inputs["bucket_mode"] == "existing"
+    name = inputs["existing_bucket_name"] if existing else inputs["new_bucket_name"]
+    import oci
+    try:
+        bucket = client.get_bucket(namespace, name).data
+    except oci.exceptions.ServiceError as exc:
+        if exc.status == 404 and not existing:
+            return
+        raise InputError("The selected bucket could not be read with these credentials.") from None
+    if not existing:
+        raise InputError("This bucket name is already in use. Choose another name or select Use existing bucket.")
+    if context["compartment_mode"] == "existing" and bucket.compartment_id != context["compartment"]:
+        raise InputError("Select a bucket in the chosen compartment.")
+    if (bucket.public_access_type != "NoPublicAccess" or bucket.storage_tier != "Standard"
+            or bucket.is_read_only or not bucket.object_events_enabled):
+        raise InputError("Select a writable, private Standard bucket with object events enabled.")
+
+
 def check_inputs(context):
     import oci
 
     inputs = context["inputs"]
-    if inputs["runtime_secret_ocid"] == inputs["admin_secret_ocid"]:
-        raise InputError("Los usuarios ADMIN e INV_FN requieren secretos distintos.")
-    for cidr in inputs["access_cidrs"].split(","):
-        network = ipaddress.ip_network(cidr.strip())
-        if network.version != 4 or network.prefixlen < 24 or not network.is_global:
-            raise InputError("Indica las redes IPv4 públicas autorizadas /24 a /32.")
+    if inputs["autonomous_database_mode"] == "new":
+        check_cidrs(inputs["access_cidrs"])
     for path in [ROOT / "database" / f"{name}.sql" for name in SQL_FILES] + [ROOT / "apex/f100.sql"]:
         if not path.is_file() or not path.stat().st_size:
-            raise InputError(f"Falta el archivo de instalación {path.name}.")
+            raise InputError(f"Missing installation file: {path.name}.")
     cfg = config_for(context["region"])
-    image = oci.artifacts.ArtifactsClient(cfg).get_container_image(inputs["function_image_ocid"]).data
-    if (image.digest != inputs["function_image_digest"] or image.lifecycle_state != "AVAILABLE"
-            or not image.version or image.version == "latest"):
-        raise InputError("La imagen de la región seleccionada debe coincidir con el digest y tener una etiqueta de versión.")
-    secrets = oci.secrets.SecretsClient(cfg)
-    admin = read_password(secrets, inputs["admin_secret_ocid"])
-    runtime = read_password(secrets, inputs["runtime_secret_ocid"])
-    if admin == runtime or not password_valid(admin, "ADMIN") or not password_valid(runtime, "INV_FN"):
-        raise InputError("Configura contraseñas distintas y compatibles en los dos secretos de Vault.")
+    check_bucket(oci.object_storage.ObjectStorageClient(cfg), context)
+    if inputs["autonomous_database_mode"] == "existing":
+        import oracledb
+        from deploy.hooks.database_target import check_existing_principal, check_install_target, existing_dsn
+
+        database = oci.database.DatabaseClient(cfg).get_autonomous_database(inputs["existing_autonomous_database_id"]).data
+        scope = context["compartment"] if context["compartment_mode"] == "existing" else None
+        dsn = existing_dsn(database, scope)
+        secret_inputs = context_file("DEPLOY_STUDIO_SECRETS")["inputs"]
+        password = secret_inputs["autonomous_database_admin_password"]
+        with oracledb.connect(user="ADMIN", password=password, dsn=dsn, ssl_server_dn_match=True,
+                              tcp_connect_timeout=10) as admin:
+            check_existing_principal(admin)
+            check_install_target(admin, context["deployment_id"])
 
 
 def main():
     path = Path(os.environ["DEPLOY_STUDIO_RESULT"])
+    from deploy.hooks.database_target import DatabaseTargetError
     try:
         check_inputs(context_file("DEPLOY_STUDIO_CONTEXT"))
-        status, message = "passed", "Imagen regional, secretos, ACL y archivos de la release verificados."
+        status, message = "passed", "Bucket, database settings and release files verified."
     except Exception as exc:
         # Keep OCI error bodies and Vault values outside the deployment history.
         status = "failed"
-        message = str(exc) if isinstance(exc, InputError) else "Comprueba imagen OCIR, permisos y contenido de Vault, redes de acceso y archivos de la release."
+        message = str(exc) if isinstance(exc, (InputError, DatabaseTargetError)) else "Check OCI access, database credentials and connectivity from the installer."
     path.write_text(json.dumps({"events": [{"name": "Invoice Extractor", "status": status, "message": message}]}), encoding="utf-8")
     return int(status == "failed")
 

@@ -71,12 +71,14 @@ def schema_session(admin, schema, password, dsn):
             cursor.execute(f"alter user {schema} revoke connect through ADMIN")
 
 
-def enable_retry(admin, invoke_url):
+def enable_retry(admin, invoke_url, *, existing_database=False):
     host = urlsplit(invoke_url)
     if host.scheme != "https" or not (host.hostname or "").endswith(".functions.oci.oraclecloud.com"):
         raise ValueError("Unsupported Functions endpoint")
     with admin.cursor() as cur:
         if not scalar(cur, "select count(*) from dba_credentials where owner='ADMIN' and credential_name='OCI$RESOURCE_PRINCIPAL'"):
+            if existing_database:
+                raise ValueError("Enable the database resource principal before reusing this database.")
             cur.execute("begin dbms_cloud_admin.enable_resource_principal; end;")
         if not scalar(cur, """select count(*) from all_tab_privs where grantee='INV_DATA'
                 and table_schema='ADMIN' and table_name='OCI$RESOURCE_PRINCIPAL'"""):
@@ -163,46 +165,50 @@ def install(stages):
     inputs = context["inputs"]
     cfg = config_for(context["region"])
     operator = inputs["apex_operator"].upper()
-    operator_password = context_file("DEPLOY_STUDIO_SECRETS")["inputs"]["apex_operator_password"]
+    from deploy.hooks.database_target import check_install_target
+    secret_inputs = context_file("DEPLOY_STUDIO_SECRETS")["inputs"]
+    operator_password = secret_inputs["apex_operator_password"]
     secrets = oci.secrets.SecretsClient(cfg)
     events = oci.events.EventsClient(cfg)
-    stages.append("verificación del destino y Vault")
-    delivery(events, outputs, context["compartment"]["id"], False)
-    admin_password = read_password(secrets, inputs["admin_secret_ocid"])
-    runtime_password = read_password(secrets, inputs["runtime_secret_ocid"])
+    stages.append("target and Vault verification")
+    delivery(events, outputs, outputs["bucket_compartment_id"], False)
+    admin_password = (secret_inputs["autonomous_database_admin_password"] if inputs["autonomous_database_mode"] == "existing"
+                      else read_password(secrets, outputs["admin_secret_ocid"]))
+    runtime_password = read_password(secrets, outputs["runtime_secret_ocid"])
     dsn = outputs["db_dsn"]
-    stages.append("conexión TLS a Autonomous Database desde el worker y creación de usuarios")
+    stages.append("Autonomous Database connection and schema setup")
     with oracledb.connect(user="ADMIN", password=admin_password, dsn=dsn, ssl_server_dn_match=True) as admin:
+        check_install_target(admin, context["deployment_id"], reserve=True)
         prepare_users(admin, runtime_password)
-        stages.append("credencial de recurso y lista de acceso HTTPS")
-        enable_retry(admin, outputs["function_invoke_url"])
-        stages.append("instalación del modelo y las plantillas")
+        stages.append("resource principal and HTTPS access setup")
+        enable_retry(admin, outputs["function_invoke_url"], existing_database=inputs["autonomous_database_mode"] == "existing")
+        stages.append("data model and template installation")
         with schema_session(admin, "INV_DATA", admin_password, dsn) as owner:
             install_data(owner, outputs, operator)
-        stages.append("creación del workspace y usuario APEX")
+        stages.append("APEX workspace and user setup")
         create_workspace(admin, operator, operator_password)
-        stages.append("importación de la aplicación APEX")
+        stages.append("APEX application import")
         with schema_session(admin, "INV_APEX", admin_password, dsn) as parsing_schema:
             install_apex(parsing_schema)
-    stages.append("validación de INV_FN y activación de Events")
+    stages.append("runtime verification and event activation")
     with oracledb.connect(user="INV_FN", password=runtime_password, dsn=dsn, ssl_server_dn_match=True) as runtime:
         runtime.ping()
     url = application_url(outputs["apex_base_url"])
-    delivery(events, outputs, context["compartment"]["id"], True)
+    delivery(events, outputs, outputs["bucket_compartment_id"], True)
     return {"application_url": url}
 
 
 def main():
-    stages = ["lectura del contrato de instalación"]
+    stages = ["installation contract"]
     try:
         outputs = install(stages)
-        result = {"outputs": outputs, "events": [{"level": "success", "message": "APEX instalado y regla de Events activa."}]}
+        result = {"outputs": outputs, "events": [{"level": "success", "message": "APEX installed and Events rule enabled."}]}
         code = 0
     except Exception as exc:
         # Only known error codes are useful here. Driver messages can include SQL or credentials.
         match = re.search(r"\b(?:ORA|DPY|PLS)-\d{4,5}\b", str(exc))
         error = f" ({match.group()})" if match else ""
-        result = {"events": [{"level": "error", "message": f"Falló la etapa de {stages[-1]}{error}."}]}
+        result = {"events": [{"level": "error", "message": f"Installation failed during {stages[-1]}{error}."}]}
         code = 1
     Path(os.environ["DEPLOY_STUDIO_OUTPUT"]).write_text(json.dumps(result), encoding="utf-8")
     return code

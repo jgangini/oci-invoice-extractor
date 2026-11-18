@@ -25,13 +25,32 @@ variable "function_image_digest" {
     error_message = "Supply the immutable OCI manifest digest from release-inputs."
   }
 }
-variable "admin_secret_ocid" { type = string }
-variable "runtime_secret_ocid" { type = string }
+variable "autonomous_database_mode" {
+  type    = string
+  default = "new"
+  validation {
+    condition     = contains(["new", "existing"], var.autonomous_database_mode)
+    error_message = "Select a new or an existing Autonomous Database."
+  }
+}
+variable "autonomous_database_name" {
+  type    = string
+  default = "INVOICES"
+  validation {
+    condition     = can(regex("^[A-Za-z][A-Za-z0-9]{0,29}$", var.autonomous_database_name))
+    error_message = "Use up to 30 letters and digits, starting with a letter."
+  }
+}
+variable "existing_autonomous_database_id" {
+  type    = string
+  default = ""
+}
 variable "access_cidrs" {
   description = "Comma-separated approved IPv4 networks for Deploy Studio egress and APEX clients."
   type        = string
+  default     = ""
   validation {
-    condition     = alltrue([for c in split(",", var.access_cidrs) : can(cidrnetmask(trimspace(c))) && try(tonumber(split("/", c)[1]) >= 24, false)])
+    condition     = var.access_cidrs == "" || alltrue([for c in split(",", var.access_cidrs) : can(cidrnetmask(trimspace(c))) && try(tonumber(split("/", c)[1]) >= 24, false)])
     error_message = "Supply individual IPv4 networks /24 to /32. Include the worker egress."
   }
 }
