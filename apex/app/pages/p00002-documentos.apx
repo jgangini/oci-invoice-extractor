@@ -1,0 +1,297 @@
+page 2 (
+    name: Documentos del lote
+    alias: DOCUMENTOS
+    title: Documentos del lote
+    appearance {
+        pageTemplate: @/standard
+    }
+    security {
+        authorizationScheme: @review
+        pageAccessProtection: argumentsMustHaveChecksum
+    }
+    region lote (
+        name: Lote
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+    )
+    pageItem P2_BATCH (
+        type: textField
+        label {
+            label: Número de lote
+        }
+        layout {
+            sequence: 10
+            region: @lote
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+
+    )
+    button retry (
+        buttonName: RETRY
+        label: Reprocesar lote
+        layout {
+            sequence: 20
+            region: @lote
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+        }
+    )
+    process retry (
+        name: Reprocesar lote
+        type: executeCode
+        source {
+            plsqlCode:
+            ```plsql
+            begin inv_data.inv_ui.retry_batch(:P2_BATCH); end;
+            ```
+        }
+        execution {
+            sequence: 20
+        }
+        successMessage {
+            successMessage: Solicitud enviada.
+        }
+        serverSideCondition {
+            whenButtonPressed: @retry
+        }
+    )
+    region documentos (
+        name: Documentos
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+            ```sql
+            select document_id, member_name, generation, error_code from inv_data.inv_v_documents where batch_id=:P2_BATCH order by generation desc, document_id
+            ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+        reportLayout {
+            numberOfRows: 20
+        }
+        componentAppearance {
+            template: @/standard
+        }
+        pagination {
+            type: nextAndPreviousLinks
+        }
+        messages {
+            whenNoDataFound: Sin registros para mostrar.
+        }
+        column DOCUMENT_ID (
+            reportColumnQueryId: 1
+            derivedColumn: N
+
+            heading {
+                heading: Documento
+            }
+            layout {
+                sequence: 10
+            }
+
+        )
+        column MEMBER_NAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+
+            heading {
+                heading: PDF
+            }
+            layout {
+                sequence: 20
+            }
+
+        )
+        column GENERATION (
+            reportColumnQueryId: 3
+            derivedColumn: N
+
+            heading {
+                heading: Intento
+            }
+            layout {
+                sequence: 30
+            }
+
+        )
+        column ERROR_CODE (
+            reportColumnQueryId: 4
+            derivedColumn: N
+
+            heading {
+                heading: Incidencia
+            }
+            layout {
+                sequence: 40
+            }
+
+        )
+    )
+    region campos (
+        name: Campos y evidencia
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+            ```sql
+            select result_id, member_name, label, effective_value, review_state, page_no, method, evidence, nvl(review_id,0) revision from inv_data.inv_v_results where batch_id=:P2_BATCH order by case review_state when 'DISCREPANCIA' then 0 when 'REVISAR' then 1 else 2 end, document_id, field_key
+            ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+        reportLayout {
+            numberOfRows: 20
+        }
+        componentAppearance {
+            template: @/standard
+        }
+        pagination {
+            type: nextAndPreviousLinks
+        }
+        messages {
+            whenNoDataFound: Sin registros para mostrar.
+        }
+        column RESULT_ID (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: link
+            heading {
+                heading: Revisar
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 3
+                    items: {
+                        P3_RESULT: \#RESULT_ID#\
+                        P3_REV: \#REVISION#\
+                    }
+                }
+                linkText: \#RESULT_ID#\
+            }
+        )
+        column MEMBER_NAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+
+            heading {
+                heading: PDF
+            }
+            layout {
+                sequence: 20
+            }
+
+        )
+        column LABEL (
+            reportColumnQueryId: 3
+            derivedColumn: N
+
+            heading {
+                heading: Campo
+            }
+            layout {
+                sequence: 30
+            }
+
+        )
+        column EFFECTIVE_VALUE (
+            reportColumnQueryId: 4
+            derivedColumn: N
+
+            heading {
+                heading: Valor vigente
+            }
+            layout {
+                sequence: 40
+            }
+
+        )
+        column REVIEW_STATE (
+            reportColumnQueryId: 5
+            derivedColumn: N
+
+            heading {
+                heading: Estado
+            }
+            layout {
+                sequence: 50
+            }
+
+        )
+        column PAGE_NO (
+            reportColumnQueryId: 6
+            derivedColumn: N
+
+            heading {
+                heading: Página
+            }
+            layout {
+                sequence: 60
+            }
+
+        )
+        column METHOD (
+            reportColumnQueryId: 7
+            derivedColumn: N
+
+            heading {
+                heading: Método
+            }
+            layout {
+                sequence: 70
+            }
+
+        )
+        column EVIDENCE (
+            reportColumnQueryId: 8
+            derivedColumn: N
+
+            heading {
+                heading: Evidencia
+            }
+            layout {
+                sequence: 80
+            }
+
+        )
+        column REVISION (
+            reportColumnQueryId: 9
+            derivedColumn: N
+
+            heading {
+                heading: Revisión
+            }
+            layout {
+                sequence: 90
+            }
+
+        )
+    )
+)

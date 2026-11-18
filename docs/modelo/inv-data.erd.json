@@ -1,0 +1,594 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "Modelo de datos de extracción de facturas",
+    "subtitle": "INV_DATA · Catálogo, documentos, resultados y aprobaciones",
+    "locale": "es",
+    "output": "docs/modelo/inv-data.html",
+    "quality_profile": "standard",
+    "views": [
+      {
+        "id": "config",
+        "label": "Configuración",
+        "focus": [
+          "inv_operator",
+          "inv_settings",
+          "inv_route",
+          "inv_target",
+          "inv_template",
+          "inv_field"
+        ],
+        "note": "La ruta asigna un destino lógico y una versión de la plantilla a un prefijo del bucket."
+      },
+      {
+        "id": "lote",
+        "label": "Del ZIP al resultado",
+        "focus": [
+          "inv_batch",
+          "inv_document",
+          "inv_run",
+          "inv_result"
+        ],
+        "note": "Cada generación procesa los miembros PDF del lote y conserva los valores obtenidos."
+      },
+      {
+        "id": "aprobacion",
+        "label": "Revisión de un campo",
+        "focus": [
+          "inv_field",
+          "inv_run",
+          "inv_result",
+          "inv_review"
+        ],
+        "note": "La revisión registra el valor aprobado y el motivo. La extracción original permanece disponible."
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "gapX": 55,
+    "gapY": 60,
+    "entityW": 305
+  },
+  "entities": [
+    {
+      "id": "inv_operator",
+      "label": "INV_OPERATOR",
+      "tag": "Acceso",
+      "row": 0,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "username",
+          "type": "VARCHAR2(255)",
+          "key": "pk"
+        },
+        {
+          "name": "permission",
+          "type": "VARCHAR2(10)"
+        }
+      ]
+    },
+    {
+      "id": "inv_settings",
+      "label": "INV_SETTINGS",
+      "tag": "Acceso",
+      "row": 1,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "NUMBER",
+          "key": "pk"
+        },
+        {
+          "name": "invoke_url",
+          "type": "VARCHAR2(2048)"
+        },
+        {
+          "name": "source_prefix",
+          "type": "VARCHAR2(512)"
+        }
+      ]
+    },
+    {
+      "id": "inv_target",
+      "label": "INV_TARGET",
+      "tag": "Rutas",
+      "row": 0,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "target_key",
+          "type": "VARCHAR2(64)",
+          "key": "pk"
+        },
+        {
+          "name": "title",
+          "type": "VARCHAR2(200)"
+        }
+      ]
+    },
+    {
+      "id": "inv_route",
+      "label": "INV_ROUTE",
+      "tag": "Rutas",
+      "row": 1,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "prefix",
+          "type": "VARCHAR2(512)",
+          "key": "pk"
+        },
+        {
+          "name": "version_id",
+          "type": "NUMBER",
+          "key": "fk",
+          "references": "inv_template.version_id"
+        },
+        {
+          "name": "target_key",
+          "type": "VARCHAR2(64)",
+          "key": "fk",
+          "references": "inv_target.target_key"
+        }
+      ]
+    },
+    {
+      "id": "inv_template",
+      "label": "INV_TEMPLATE",
+      "tag": "Catálogo",
+      "row": 1,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "version_id",
+          "type": "NUMBER",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR2(100)",
+          "key": "uk"
+        },
+        {
+          "name": "version_no",
+          "type": "NUMBER",
+          "key": "uk"
+        },
+        {
+          "name": "definition",
+          "type": "CLOB"
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE"
+        }
+      ]
+    },
+    {
+      "id": "inv_field",
+      "label": "INV_FIELD",
+      "tag": "Catálogo",
+      "row": 2,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "version_id",
+          "type": "NUMBER",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "inv_template.version_id"
+        },
+        {
+          "name": "field_key",
+          "type": "VARCHAR2(64)",
+          "key": "pk"
+        },
+        {
+          "name": "label",
+          "type": "VARCHAR2(200)"
+        },
+        {
+          "name": "data_type",
+          "type": "VARCHAR2(12)"
+        },
+        {
+          "name": "required_flag",
+          "type": "NUMBER(1)"
+        }
+      ]
+    },
+    {
+      "id": "inv_batch",
+      "label": "INV_BATCH",
+      "tag": "Recepción",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "batch_id",
+          "type": "NUMBER",
+          "key": [
+            "pk",
+            "uk"
+          ]
+        },
+        {
+          "name": "object_key",
+          "type": "VARCHAR2(1024 BYTE)",
+          "key": "uk"
+        },
+        {
+          "name": "etag",
+          "type": "VARCHAR2(128)",
+          "key": "uk"
+        },
+        {
+          "name": "source_version",
+          "type": "VARCHAR2(256)",
+          "key": "uk"
+        },
+        {
+          "name": "route_prefix",
+          "type": "VARCHAR2(512)"
+        },
+        {
+          "name": "target_key",
+          "type": "VARCHAR2(64)",
+          "key": "fk",
+          "references": "inv_target.target_key"
+        },
+        {
+          "name": "version_id",
+          "type": "NUMBER",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "inv_template.version_id"
+        },
+        {
+          "name": "generation",
+          "type": "NUMBER"
+        },
+        {
+          "name": "expected_docs",
+          "type": "NUMBER"
+        },
+        {
+          "name": "error_code",
+          "type": "VARCHAR2(80)"
+        },
+        {
+          "name": "state",
+          "type": "VARCHAR2(12)"
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE"
+        }
+      ]
+    },
+    {
+      "id": "inv_document",
+      "label": "INV_DOCUMENT",
+      "tag": "Recepción",
+      "row": 0,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "document_id",
+          "type": "NUMBER",
+          "key": [
+            "pk",
+            "uk"
+          ]
+        },
+        {
+          "name": "batch_id",
+          "type": "NUMBER",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "inv_batch.batch_id"
+        },
+        {
+          "name": "version_id",
+          "type": "NUMBER",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "inv_batch.version_id"
+        },
+        {
+          "name": "member_name",
+          "type": "VARCHAR2(1024 BYTE)",
+          "key": "uk"
+        }
+      ]
+    },
+    {
+      "id": "inv_run",
+      "label": "INV_RUN",
+      "tag": "Extracción",
+      "row": 1,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "run_id",
+          "type": "NUMBER",
+          "key": [
+            "pk",
+            "uk"
+          ]
+        },
+        {
+          "name": "document_id",
+          "type": "NUMBER",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "inv_document.document_id"
+        },
+        {
+          "name": "version_id",
+          "type": "NUMBER",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "inv_document.version_id"
+        },
+        {
+          "name": "generation",
+          "type": "NUMBER",
+          "key": "uk"
+        },
+        {
+          "name": "extractor_version",
+          "type": "VARCHAR2(80)"
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "name": "error_code",
+          "type": "VARCHAR2(80)"
+        }
+      ]
+    },
+    {
+      "id": "inv_result",
+      "label": "INV_RESULT",
+      "tag": "Extracción",
+      "row": 2,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "result_id",
+          "type": "NUMBER",
+          "key": "pk"
+        },
+        {
+          "name": "run_id",
+          "type": "NUMBER",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "inv_run.run_id"
+        },
+        {
+          "name": "version_id",
+          "type": "NUMBER",
+          "key": "fk",
+          "references": "inv_run.version_id"
+        },
+        {
+          "name": "field_key",
+          "type": "VARCHAR2(64)",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "inv_field.field_key"
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR2(12)"
+        },
+        {
+          "name": "original_text",
+          "type": "VARCHAR2(2000 CHAR)"
+        },
+        {
+          "name": "normalized_text",
+          "type": "VARCHAR2(2000 CHAR)"
+        },
+        {
+          "name": "amount",
+          "type": "NUMBER"
+        },
+        {
+          "name": "currency_code",
+          "type": "VARCHAR2(3)"
+        },
+        {
+          "name": "page_no",
+          "type": "NUMBER"
+        },
+        {
+          "name": "method",
+          "type": "VARCHAR2(8)"
+        },
+        {
+          "name": "evidence",
+          "type": "VARCHAR2(250 CHAR)"
+        }
+      ]
+    },
+    {
+      "id": "inv_review",
+      "label": "INV_REVIEW",
+      "tag": "Revisión",
+      "row": 2,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "review_id",
+          "type": "NUMBER",
+          "key": "pk"
+        },
+        {
+          "name": "result_id",
+          "type": "NUMBER",
+          "key": "fk",
+          "references": "inv_result.result_id"
+        },
+        {
+          "name": "approved_value",
+          "type": "VARCHAR2(2000 CHAR)"
+        },
+        {
+          "name": "reason",
+          "type": "VARCHAR2(500 CHAR)"
+        },
+        {
+          "name": "actor",
+          "type": "VARCHAR2(255)"
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP WITH TIME ZONE"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "field_template",
+      "from": "inv_field",
+      "to": "inv_template",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": true
+    },
+    {
+      "id": "route_template",
+      "from": "inv_route",
+      "to": "inv_template",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "route_target",
+      "from": "inv_route",
+      "to": "inv_target",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "batch_template",
+      "from": "inv_batch",
+      "to": "inv_template",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "batch_target",
+      "from": "inv_batch",
+      "to": "inv_target",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "document_batch",
+      "from": "inv_document",
+      "to": "inv_batch",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "run_document",
+      "from": "inv_run",
+      "to": "inv_document",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "result_run",
+      "from": "inv_result",
+      "to": "inv_run",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "result_field",
+      "from": "inv_result",
+      "to": "inv_field",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "review_result",
+      "from": "inv_review",
+      "to": "inv_result",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Identidad de la factura",
+      "items": [
+        "El índice INV_BATCH_REVISION_UQ identifica el ZIP por object_key y su revisión. Usa source_version cuando existe y etag en su defecto. (batch_id, member_name) distingue cada PDF y (document_id, generation) identifica su ejecución.",
+        "La combinación (run_id, field_key) admite un resultado por campo y ejecución. Los indicadores UK marcan columnas que participan en estas restricciones compuestas."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Versión de la plantilla",
+      "items": [
+        "Las claves foráneas compuestas enlazan documento, ejecución y resultado con la misma versión. INV_RESULT usa (run_id, version_id) hacia INV_RUN y (version_id, field_key) hacia INV_FIELD.",
+        "El catálogo tiene una versión por (name, version_no). INV_BATCH conserva el prefijo aplicado y la referencia al destino y a la plantilla."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Resultado y aprobación",
+      "items": [
+        "INV_V_RESULTS recupera el resultado más reciente por documento y campo y la última aprobación humana. Una diferencia entre ambos se presenta para revisión.",
+        "Fuentes del checkout local: database/schema.sql define las tablas e índices. En database/api.sql se encuentran los paquetes INV_UI e INV_INGEST y la vista INV_V_RESULTS."
+      ]
+    }
+  ]
+}

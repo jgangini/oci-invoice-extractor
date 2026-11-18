@@ -1,0 +1,258 @@
+{
+  "schema_version": 2,
+  "execution_source": "oci_resource_manager",
+  "project_id": "oci-invoice-extractor",
+  "terraform": {
+    "path": "terraform",
+    "package_oci_credentials": false
+  },
+  "capabilities": {
+    "compartment_modes": [
+      "new",
+      "existing"
+    ],
+    "default_compartment_name": "oci-invoice-extractor",
+    "database_profile": "new",
+    "region_selection": "subscribed_compatible"
+  },
+  "form": {
+    "groups": [
+      {
+        "id": "credentials",
+        "title": "Credenciales OCI",
+        "items": [
+          {
+            "kind": "control",
+            "name": "oci_config",
+            "label": "Configuración OCI"
+          },
+          {
+            "kind": "control",
+            "name": "oci_key",
+            "label": "Clave privada OCI"
+          }
+        ]
+      },
+      {
+        "id": "deployment",
+        "title": "Destino OCI",
+        "items": [
+          {
+            "kind": "control",
+            "name": "oci_region",
+            "label": "Región OCI"
+          },
+          {
+            "kind": "control",
+            "name": "compartment_mode",
+            "label": "Modo de compartimento",
+            "options": [
+              {
+                "value": "new",
+                "label": "Nuevo"
+              },
+              {
+                "value": "existing",
+                "label": "Existente"
+              }
+            ]
+          },
+          {
+            "kind": "control",
+            "name": "new_compartment",
+            "label": "Nombre del nuevo compartimento"
+          },
+          {
+            "kind": "control",
+            "name": "existing_compartment",
+            "label": "Compartimento existente"
+          }
+        ]
+      },
+      {
+        "id": "image",
+        "title": "Imagen de la Function",
+        "items": [
+          {
+            "kind": "field",
+            "name": "function_image_ocid"
+          },
+          {
+            "kind": "field",
+            "name": "function_image_digest"
+          }
+        ]
+      },
+      {
+        "id": "database",
+        "title": "Autonomous Database y red",
+        "items": [
+          {
+            "kind": "field",
+            "name": "admin_secret_ocid"
+          },
+          {
+            "kind": "field",
+            "name": "runtime_secret_ocid"
+          },
+          {
+            "kind": "field",
+            "name": "access_cidrs"
+          }
+        ]
+      },
+      {
+        "id": "ingest",
+        "title": "Extracción y acceso APEX",
+        "items": [
+          {
+            "kind": "field",
+            "name": "source_prefix"
+          },
+          {
+            "kind": "field",
+            "name": "apex_operator"
+          },
+          {
+            "kind": "field",
+            "name": "apex_operator_password"
+          }
+        ]
+      }
+    ],
+    "fields": [
+      {
+        "name": "function_image_ocid",
+        "label": "OCID de la imagen de la release",
+        "type": "text",
+        "required": true,
+        "pattern": "^ocid1\\.containerimage\\.[a-z0-9.-]+$"
+      },
+      {
+        "name": "function_image_digest",
+        "label": "Digest SHA-256 publicado",
+        "type": "text",
+        "required": true,
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      {
+        "name": "admin_secret_ocid",
+        "label": "OCID del secreto de ADMIN en Vault",
+        "type": "text",
+        "required": true,
+        "pattern": "^ocid1\\.vaultsecret\\.[a-z0-9.-]+$"
+      },
+      {
+        "name": "runtime_secret_ocid",
+        "label": "OCID del secreto de INV_FN en Vault",
+        "type": "text",
+        "required": true,
+        "pattern": "^ocid1\\.vaultsecret\\.[a-z0-9.-]+$"
+      },
+      {
+        "name": "access_cidrs",
+        "label": "Redes IPv4 autorizadas del worker y los usuarios APEX (/24 a /32, separadas por coma)",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "source_prefix",
+        "label": "Carpeta raíz de entrada",
+        "type": "text",
+        "required": true,
+        "pattern": "^([A-Za-z0-9_-]+/)+$",
+        "default": "entrada/"
+      },
+      {
+        "name": "apex_operator",
+        "label": "Usuario inicial de la aplicación",
+        "type": "text",
+        "required": true,
+        "pattern": "^[A-Za-z][A-Za-z0-9_.-]{2,63}$",
+        "default": "INVOICE_ADMIN"
+      },
+      {
+        "name": "apex_operator_password",
+        "label": "Contraseña inicial del operador APEX",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "min_length": 12,
+        "max_length": 128,
+        "generate_password": true
+      }
+    ]
+  },
+  "presentation": {
+    "title": "OCI Invoice Extractor",
+    "summary": "Extrae datos de archivos de facturación con OCI Functions y revisa sus resultados en Oracle APEX.",
+    "tags": [
+      "OCI Functions",
+      "APEX",
+      "Object Storage"
+    ],
+    "href": "https://github.com/jgangini/oci-invoice-extractor"
+  },
+  "run_steps": [
+    {
+      "key": "queue",
+      "label": "En cola"
+    },
+    {
+      "key": "credentials",
+      "label": "Verificar credenciales y release"
+    },
+    {
+      "key": "compartment",
+      "label": "Resolver compartimento"
+    },
+    {
+      "key": "stack",
+      "label": "Preparar Resource Manager"
+    },
+    {
+      "key": "plan",
+      "label": "Verificar plan"
+    },
+    {
+      "key": "apply",
+      "label": "Aprovisionar recursos"
+    },
+    {
+      "key": "application",
+      "label": "Instalar esquema, APEX y habilitar eventos"
+    },
+    {
+      "key": "complete",
+      "label": "Completar instalación"
+    }
+  ],
+  "outputs": [
+    "application_url",
+    "autonomous_database_id",
+    "db_dsn",
+    "apex_base_url",
+    "bucket_name",
+    "object_namespace",
+    "source_prefix",
+    "event_rule_id",
+    "function_id",
+    "function_invoke_url"
+  ],
+  "preflight": {
+    "entrypoint": "deploy/hooks/preflight.py",
+    "requires_oci_credentials": true
+  },
+  "post_apply": {
+    "entrypoint": "deploy/hooks/post_apply.py",
+    "requires_oci_credentials": true,
+    "secret_inputs": [
+      "apex_operator_password"
+    ],
+    "include_paths": [
+      "database",
+      "apex/f100.sql"
+    ],
+    "timeout_seconds": 1200
+  }
+}

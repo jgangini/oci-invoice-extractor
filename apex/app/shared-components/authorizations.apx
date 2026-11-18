@@ -1,0 +1,20 @@
+authorization admin (
+    name: admin
+    type: plSqlFunctionBody
+    settings {
+        plsqlFunctionBody: return inv_data.inv_ui.permitted('ADMIN')=1;
+    }
+    error {
+        errorMessage: Acceso denegado.
+    }
+)
+authorization review (
+    name: review
+    type: plSqlFunctionBody
+    settings {
+        plsqlFunctionBody: return inv_data.inv_ui.permitted('REVIEW')=1;
+    }
+    error {
+        errorMessage: Acceso denegado.
+    }
+)

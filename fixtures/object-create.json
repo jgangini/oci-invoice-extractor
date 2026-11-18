@@ -1,0 +1,5 @@
+{
+  "eventType":"com.oraclecloud.objectstorage.createobject",
+  "eventID":"test-delivery-1",
+  "data":{"resourceName":"entrada/piloto.zip","additionalDetails":{"bucketName":"invoices","namespace":"demo","eTag":"example"}}
+}

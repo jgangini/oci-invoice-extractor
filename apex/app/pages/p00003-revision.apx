@@ -1,0 +1,242 @@
+page 3 (
+    name: Revisión de campo
+    alias: REVISION
+    title: Revisión de campo
+    appearance {
+        pageTemplate: @/standard
+    }
+    security {
+        authorizationScheme: @review
+        pageAccessProtection: argumentsMustHaveChecksum
+    }
+    region detalle (
+        name: Evidencia del documento
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+            ```sql
+            select member_name,label,original_text,normalized_text,approved_value,page_no,method,evidence from inv_data.inv_v_results where result_id=:P3_RESULT
+            ```
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+        reportLayout {
+            numberOfRows: 20
+        }
+        componentAppearance {
+            template: @/standard
+        }
+        pagination {
+            type: nextAndPreviousLinks
+        }
+        messages {
+            whenNoDataFound: Sin registros para mostrar.
+        }
+        column MEMBER_NAME (
+            reportColumnQueryId: 1
+            derivedColumn: N
+
+            heading {
+                heading: PDF
+            }
+            layout {
+                sequence: 10
+            }
+
+        )
+        column LABEL (
+            reportColumnQueryId: 2
+            derivedColumn: N
+
+            heading {
+                heading: Campo
+            }
+            layout {
+                sequence: 20
+            }
+
+        )
+        column ORIGINAL_TEXT (
+            reportColumnQueryId: 3
+            derivedColumn: N
+
+            heading {
+                heading: Original
+            }
+            layout {
+                sequence: 30
+            }
+
+        )
+        column NORMALIZED_TEXT (
+            reportColumnQueryId: 4
+            derivedColumn: N
+
+            heading {
+                heading: Normalizado
+            }
+            layout {
+                sequence: 40
+            }
+
+        )
+        column APPROVED_VALUE (
+            reportColumnQueryId: 5
+            derivedColumn: N
+
+            heading {
+                heading: Aprobado
+            }
+            layout {
+                sequence: 50
+            }
+
+        )
+        column PAGE_NO (
+            reportColumnQueryId: 6
+            derivedColumn: N
+
+            heading {
+                heading: Página
+            }
+            layout {
+                sequence: 60
+            }
+
+        )
+        column METHOD (
+            reportColumnQueryId: 7
+            derivedColumn: N
+
+            heading {
+                heading: Método
+            }
+            layout {
+                sequence: 70
+            }
+
+        )
+        column EVIDENCE (
+            reportColumnQueryId: 8
+            derivedColumn: N
+
+            heading {
+                heading: Evidencia
+            }
+            layout {
+                sequence: 80
+            }
+
+        )
+    )
+    region correccion (
+        name: Corrección
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+    )
+    pageItem P3_RESULT (
+        type: displayOnly
+        label {
+            label: Resultado
+        }
+        layout {
+            sequence: 1
+            region: @correccion
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+
+    )
+    pageItem P3_REV (
+        type: displayOnly
+        label {
+            label: Revisión de partida
+        }
+        layout {
+            sequence: 2
+            region: @correccion
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+
+    )
+    pageItem P3_VALUE (
+        type: textField
+        label {
+            label: Valor aprobado
+        }
+        layout {
+            sequence: 10
+            region: @correccion
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+
+    )
+    pageItem P3_REASON (
+        type: textField
+        label {
+            label: Motivo
+        }
+        layout {
+            sequence: 20
+            region: @correccion
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+
+    )
+    button aprobar (
+        buttonName: APROBAR
+        label: Guardar corrección
+        layout {
+            sequence: 30
+            region: @correccion
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+        }
+    )
+    process aprobar (
+        name: Guardar corrección
+        type: executeCode
+        source {
+            plsqlCode:
+            ```plsql
+            begin inv_data.inv_ui.approve(:P3_RESULT,:P3_REV,:P3_VALUE,:P3_REASON); select review_id into :P3_REV from inv_data.inv_v_results where result_id=:P3_RESULT; end;
+            ```
+        }
+        execution {
+            sequence: 30
+        }
+        successMessage {
+            successMessage: Corrección guardada.
+        }
+        serverSideCondition {
+            whenButtonPressed: @aprobar
+        }
+    )
+)
