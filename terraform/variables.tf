@@ -33,6 +33,22 @@ variable "autonomous_database_mode" {
     error_message = "Select a new or an existing Autonomous Database."
   }
 }
+variable "autonomous_database_version" {
+  type    = string
+  default = "26ai"
+  validation {
+    condition     = var.autonomous_database_version == "26ai"
+    error_message = "Choose the supported Oracle AI Database 26ai profile."
+  }
+}
+variable "autonomous_database_workload" {
+  type    = string
+  default = "OLTP"
+  validation {
+    condition     = var.autonomous_database_workload == "OLTP"
+    error_message = "Choose the OLTP workload for invoice extraction."
+  }
+}
 variable "autonomous_database_name" {
   type    = string
   default = "INVOICES"
@@ -57,7 +73,7 @@ variable "access_cidrs" {
 variable "source_prefix" {
   description = "The allowed source root. APEX routes can narrow it."
   type        = string
-  default     = "entrada/"
+  default     = "source/"
   validation {
     condition     = can(regex("^([[:alnum:]_-]+/)+$", var.source_prefix))
     error_message = "Supply a relative folder of letters, digits, underscores or hyphens ending in /."

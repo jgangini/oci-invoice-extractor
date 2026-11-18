@@ -35,8 +35,10 @@ run "new_database" {
     target = [oci_database_autonomous_database.invoices, data.oci_database_autonomous_database.existing, oci_vault_secret.database]
   }
   variables {
-    autonomous_database_name = "InvoicesQA"
-    access_cidrs             = "192.0.2.128/32"
+    autonomous_database_name     = "InvoicesQA"
+    autonomous_database_version  = "26ai"
+    autonomous_database_workload = "OLTP"
+    access_cidrs                 = "192.0.2.128/32"
   }
   assert {
     condition     = oci_database_autonomous_database.invoices[0].db_name == "INVOICESQA" && length(data.oci_database_autonomous_database.existing) == 0
@@ -45,6 +47,10 @@ run "new_database" {
   assert {
     condition     = toset(keys(oci_vault_secret.database)) == toset(["runtime", "admin"]) && alltrue([for secret in oci_vault_secret.database : secret.enable_auto_generation])
     error_message = "Vault must generate both passwords in new mode."
+  }
+  assert {
+    condition     = (oci_database_autonomous_database.invoices[0].db_version == "26ai" && oci_database_autonomous_database.invoices[0].db_workload == "OLTP" && oci_database_autonomous_database.invoices[0].compute_model == "ECPU" && oci_database_autonomous_database.invoices[0].compute_count == 4 && oci_database_autonomous_database.invoices[0].data_storage_size_in_tbs == 1)
+    error_message = "The provisioned database must match the advertised 26ai OLTP, 4 ECPU, 1 TB profile."
   }
 }
 
