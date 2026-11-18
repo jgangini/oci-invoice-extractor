@@ -43,6 +43,7 @@ moved {
   to   = oci_database_autonomous_database.invoices[0]
 }
 
+# Serverless enforces its ACL through whitelisted_ips. The explicit enable flag is specific to Cloud@Customer.
 resource "oci_database_autonomous_database" "invoices" {
   count                       = local.create_database ? 1 : 0
   compartment_id              = var.compartment_ocid
@@ -57,7 +58,6 @@ resource "oci_database_autonomous_database" "invoices" {
   license_model               = "LICENSE_INCLUDED"
   secret_id                   = oci_vault_secret.database["admin"].id
   is_mtls_connection_required = false
-  is_access_control_enabled   = true
   whitelisted_ips             = concat([oci_core_vcn.extractor.id], [for c in split(",", var.access_cidrs) : trimspace(c)])
   db_tools_details {
     name       = "APEX"
