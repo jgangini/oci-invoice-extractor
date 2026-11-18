@@ -1,4 +1,6 @@
 output "autonomous_database_id" { value = local.database_id }
+output "vault_id" { value = local.vault_id }
+output "vault_key_id" { value = local.vault_key_id }
 output "runtime_secret_ocid" { value = oci_vault_secret.database["runtime"].id }
 output "admin_secret_ocid" { value = local.create_database ? oci_vault_secret.database["admin"].id : "" }
 output "db_dsn" {

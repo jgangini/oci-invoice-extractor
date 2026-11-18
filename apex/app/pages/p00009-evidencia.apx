@@ -1,0 +1,55 @@
+page 9 (
+    name: Page
+    alias: EVIDENCIA
+    title: Page
+    appearance {
+        pageTemplate: @/standard
+    }
+    security {
+        authorizationScheme: @review
+        pageAccessProtection: argumentsMustHaveChecksum
+    }
+    region control (
+        name: Page
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+    )
+    pageItem P9_PAGE (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @control
+            slot: regionBody
+        }
+    )
+    process archivo (
+        name: Test page image
+        type: executeCode
+        source {
+            plsqlCode:
+```plsql
+declare id_ varchar2(80); b blob; begin
+  select c001 into id_ from apex_collections where collection_name='INV_UI_TEST' and seq_id=1;
+  b:=inv_data.inv_upload.test_page_content(id_,to_number(:P9_PAGE));
+  owa_util.mime_header('image/jpeg',false);
+  htp.p('Cache-Control: private, no-store');
+  htp.p('X-Content-Type-Options: nosniff');
+  htp.p('Content-Length: ' || dbms_lob.getlength(b));
+  owa_util.http_header_close; wpg_docload.download_file(b);
+  apex_application.stop_apex_engine;
+end;
+```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+    )
+
+)

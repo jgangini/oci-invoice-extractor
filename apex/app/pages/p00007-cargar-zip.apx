@@ -1,0 +1,192 @@
+page 7 (
+    name: Upload a ZIP batch
+    alias: CARGAR-ZIP
+    title: Upload a ZIP batch
+    appearance {
+        pageTemplate: @/standard
+    }
+    security {
+        authorizationScheme: @review
+        pageAccessProtection: argumentsMustHaveChecksum
+    }
+    javaScript {
+        fileUrls: #APP_FILES#invoice-monitor.js
+        executeWhenPageLoads: InvoiceMonitor.start();
+    }
+    region entrada (
+        name: Upload a batch
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+    )
+    pageItem P7_PREFIX (
+        type: selectList
+        label {
+            label: Source route
+        }
+        layout {
+            sequence: 10
+            region: @entrada
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select prefix || ' (' || name || ' v' || version_no || ', ' || target_key || ')' d,prefix r from inv_data.inv_v_upload_routes order by prefix
+        }
+    )
+    pageItem P7_FILE (
+        type: fileUpload
+        label {
+            label: ZIP file (up to 48 MiB)
+        }
+        layout {
+            sequence: 20
+            region: @entrada
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+        display {
+            displayAs: blockDropzone
+        }
+        storage {
+            type: appTempFiles
+            purgeFileAt: endOfSession
+            maxFileSize: 49152
+            fileTypes: .zip
+        }
+    )
+    button enviar (
+        buttonName: ENVIAR
+        label: Upload to bucket
+        layout {
+            sequence: 10
+            region: @entrada
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+        }
+    )
+    region avances (
+        name: Batch monitor
+        type: staticContent
+        source {
+            htmlCode:
+```html
+<div class="inv-console" id="invoice-monitor" data-kind="zip">
+  <div class="inv-toolbar">
+    <label>Find a batch<input type="search" class="inv-filter" placeholder="Filename or batch ID" maxlength="160"></label>
+    <label>Batch to monitor<select class="inv-batch"><option value="">Latest upload in this session</option></select></label>
+    <button type="button" class="inv-search">Find batches</button>
+  </div>
+  <ol class="inv-timeline" aria-label="Processing stages"></ol>
+  <p class="inv-status" role="status"></p>
+  <div class="inv-metrics" aria-label="Batch progress"></div><h2>Batch documents</h2><div class="inv-results"></div>
+  <div class="inv-toolbar inv-pagination"><button type="button" class="inv-prev">Previous</button><span class="inv-range"></span><button type="button" class="inv-next">Next</button></div>
+  <button type="button" class="inv-refresh">Refresh status</button>
+</div>
+```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+    )
+    process enviar (
+        name: Upload batch
+        type: executeCode
+        source {
+            plsqlCode:
+```plsql
+declare b blob; filename_ varchar2(512); id_ varchar2(1024); begin
+  select blob_content,filename into b,filename_ from apex_application_temp_files where application_id=:APP_ID and name=:P7_FILE;
+  inv_data.inv_upload.submit_zip(:P7_PREFIX,filename_,b,id_);
+  apex_collection.create_or_truncate_collection('INV_UI_UPLOAD');
+  apex_collection.add_member(p_collection_name=>'INV_UI_UPLOAD',p_c001=>id_,p_c002=>:P7_FILE,p_c003=>filename_);
+  apex_collection.create_or_truncate_collection('INV_SELECTED_BATCH');
+end;
+```
+        }
+        execution {
+            sequence: 10
+            point: processing
+        }
+        serverSideCondition {
+            whenButtonPressed: @enviar
+        }
+    )
+    process estado (
+        name: ESTADO
+        type: executeCode
+        source {
+            plsqlCode:
+```plsql
+declare b sys_refcursor; d sys_refcursor; key_ varchar2(1024); id_ number; generation_ number; skip_ number; total_ number; begin
+ skip_:=greatest(0,least(10000000,nvl(to_number(apex_application.g_x02),0)));
+ if apex_application.g_x01='self' then
+   apex_collection.create_or_truncate_collection('INV_SELECTED_BATCH');
+ elsif apex_application.g_x01 is not null then
+   select batch_id into id_ from inv_data.inv_v_batches where batch_id=to_number(apex_application.g_x01);
+   apex_collection.create_or_truncate_collection('INV_SELECTED_BATCH');
+   apex_collection.add_member(p_collection_name=>'INV_SELECTED_BATCH',p_n001=>id_);
+ end if;
+ select max(n001) into id_ from apex_collections where collection_name='INV_SELECTED_BATCH';
+ if id_ is null then
+   select max(c001) into key_ from apex_collections where collection_name='INV_UI_UPLOAD';
+   select max(batch_id) into id_ from inv_data.inv_v_batches where object_key=key_;
+ else
+   select object_key into key_ from inv_data.inv_v_batches where batch_id=id_;
+ end if;
+ apex_json.open_object; apex_json.write('tracking',key_);
+ if id_ is not null then
+  select generation into generation_ from inv_data.inv_v_batches where batch_id=id_;
+  open b for select batch_id,state,expected_docs,processed_docs,error_docs,remaining_docs,eta_seconds,error_code from inv_data.inv_v_batches where batch_id=id_ and generation=generation_;
+  select count(*) into total_ from inv_data.inv_v_documents where batch_id=id_ and generation=generation_;
+  open d for select member_name,state,error_code from inv_data.inv_v_documents where batch_id=id_ and generation=generation_ order by member_name,document_id offset skip_ rows fetch next 20 rows only;
+  apex_json.write('documentCount',total_);
+  apex_json.write('items',b); apex_json.write('documents',d);
+ end if;
+ apex_json.close_object;
+end;
+```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+    )
+    process recientes (
+        name: RECIENTES
+        type: executeCode
+        source {
+            plsqlCode:
+```plsql
+declare cur_ sys_refcursor; q_ varchar2(160):=lower(substr(trim(apex_application.g_x01),1,160)); begin
+ open cur_ for select batch_id,object_key,state from inv_data.inv_v_batches
+ where q_ is null or instr(lower(object_key),q_)>0 or to_char(batch_id)=q_
+ order by batch_id desc fetch first 60 rows only;
+ apex_json.open_object; apex_json.write('batches',cur_); apex_json.close_object;
+end;
+```
+        }
+        execution {
+            sequence: 20
+            point: ajaxCallback
+        }
+    )
+
+)

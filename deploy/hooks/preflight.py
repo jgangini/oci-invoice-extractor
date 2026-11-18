@@ -9,7 +9,7 @@ import re
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SQL_FILES = ("schema", "api", "grants", "seed")
+SQL_FILES = ("schema", "api", "uploads", "grants", "seed")
 
 
 class InputError(ValueError):
@@ -78,7 +78,7 @@ def check_inputs(context):
         secret_inputs = context_file("DEPLOY_STUDIO_SECRETS")["inputs"]
         if not password_valid(secret_inputs["autonomous_database_admin_password"], "ADMIN"):
             raise InputError("Use 12 to 30 characters with uppercase, lowercase and a digit for the database admin password.")
-    for path in [ROOT / "database" / f"{name}.sql" for name in SQL_FILES] + [ROOT / "apex/f100.sql"]:
+    for path in [ROOT / "database" / f"{name}.sql" for name in SQL_FILES] + [ROOT / "apex/f100.sql", ROOT / "source/invoice-catalog.json"]:
         if not path.is_file() or not path.stat().st_size:
             raise InputError(f"Missing installation file: {path.name}.")
     cfg = config_for(context["region"])

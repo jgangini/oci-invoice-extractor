@@ -1,3 +1,18 @@
+file "invoice-editor.js" (
+    mimeType: application/javascript
+    charSet: utf-8
+)
+
+file "invoice-monitor.js" (
+    mimeType: application/javascript
+    charSet: utf-8
+)
+
+file "invoice.css" (
+    mimeType: text/css
+    charSet: utf-8
+)
+
 file "icons/app-icon-144-rounded.png" (
     mimeType: image/png
     charSet: utf-8

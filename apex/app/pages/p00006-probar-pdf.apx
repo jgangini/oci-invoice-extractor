@@ -1,0 +1,158 @@
+page 6 (
+    name: Test a PDF
+    alias: PROBAR-PDF
+    title: Test a PDF
+    appearance {
+        pageTemplate: @/standard
+    }
+    security {
+        authorizationScheme: @review
+        pageAccessProtection: argumentsMustHaveChecksum
+    }
+    javaScript {
+        fileUrls: #APP_FILES#invoice-monitor.js
+        executeWhenPageLoads: InvoiceMonitor.start();
+    }
+    region entrada (
+        name: Test document
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+    )
+    pageItem P6_VERSION (
+        type: selectList
+        label {
+            label: Extraction template
+        }
+        layout {
+            sequence: 10
+            region: @entrada
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name || ' v' || version_no d,version_id r from inv_data.inv_v_test_templates order by name,version_no desc
+        }
+    )
+    pageItem P6_FILE (
+        type: fileUpload
+        label {
+            label: PDF file (up to 12 MiB)
+        }
+        layout {
+            sequence: 20
+            region: @entrada
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+        display {
+            displayAs: blockDropzone
+        }
+        storage {
+            type: appTempFiles
+            purgeFileAt: endOfSession
+            maxFileSize: 12288
+            fileTypes: .pdf
+        }
+    )
+    button probar (
+        buttonName: PROBAR
+        label: Run extraction
+        layout {
+            sequence: 10
+            region: @entrada
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+        }
+    )
+    region avances (
+        name: Document review
+        type: staticContent
+        source {
+            htmlCode:
+```html
+<div class="inv-console" id="invoice-monitor" data-kind="pdf">
+  <ol class="inv-timeline" aria-label="Processing stages"></ol>
+  <p class="inv-status" role="status"></p>
+  <nav class="inv-pane-nav" aria-label="Review panels"><a href="#inv-documento">Go to document</a><a href="#inv-campos">Go to results</a></nav>
+  <div class="inv-page-controls" role="group" aria-label="Document review controls">
+    <label>Page<select class="inv-page-choice" disabled><option>Original PDF</option></select></label>
+    <label>Overlay<select class="inv-layer-choice" disabled><option>No overlay</option></select></label>
+    <button class="inv-open-original" type="button" disabled aria-label="Open original PDF in a new tab">Open original PDF</button>
+  </div>
+  <div class="inv-split"><section><h2 id="inv-documento" tabindex="-1">Document</h2><div class="inv-preview"><p>Select a PDF to preview it.</p></div></section><section><h2 id="inv-campos" tabindex="-1">Extracted fields</h2><div class="inv-results"></div></section></div>
+  <button type="button" class="inv-refresh">Refresh status</button>
+</div>
+```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+    )
+    process probar (
+        name: Run test
+        type: executeCode
+        source {
+            plsqlCode:
+```plsql
+declare b blob; filename_ varchar2(512); id_ varchar2(1024); begin
+  select blob_content,filename into b,filename_ from apex_application_temp_files where application_id=:APP_ID and name=:P6_FILE;
+  inv_data.inv_upload.test_pdf(:P6_VERSION,filename_,b,id_);
+  apex_collection.create_or_truncate_collection('INV_UI_TEST');
+  apex_collection.add_member(p_collection_name=>'INV_UI_TEST',p_c001=>id_,p_c002=>:P6_FILE,p_c003=>filename_);
+end;
+```
+        }
+        execution {
+            sequence: 10
+            point: processing
+        }
+        serverSideCondition {
+            whenButtonPressed: @probar
+        }
+    )
+    process estado (
+        name: ESTADO
+        type: executeCode
+        source {
+            plsqlCode:
+```plsql
+declare t sys_refcursor; f sys_refcursor; p sys_refcursor; l sys_refcursor; id_ varchar2(80); begin
+ select max(c001) into id_ from apex_collections where collection_name='INV_UI_TEST';
+ apex_json.open_object; apex_json.write('tracking',id_);
+ if id_ is not null then
+  open t for select filename,state,stage,error_code from inv_data.inv_v_tests where test_id=id_;
+  open f for select label,field_key,status,original_text,normalized_text,page_no,method,evidence,evidence_box,anchor_text from inv_data.inv_v_test_fields where test_id=id_ order by field_key;
+  open p for select page_no,width_px,height_px,method,fragment_total,fragment_shown,fragment_truncated,apex_page.get_url(p_page=>9,p_items=>'P9_PAGE',p_values=>to_char(page_no)) image_url from inv_data.inv_v_test_pages where test_id=id_ order by page_no;
+  open l for select page_no,fragment_no,text_value,evidence_box,text_truncated,method from inv_data.inv_v_test_fragments where test_id=id_ order by page_no,fragment_no;
+  apex_json.write('items',t); apex_json.write('fields',f); apex_json.write('pages',p); apex_json.write('lines',l);
+  apex_json.write('preview',apex_page.get_url(p_page=>8,p_clear_cache=>'8'));
+ end if;
+ apex_json.close_object;
+end;
+```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+    )
+
+)

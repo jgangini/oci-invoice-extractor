@@ -55,7 +55,7 @@ if __name__ == "__main__":
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument("--directory", type=Path, default=ROOT / ".source/test/4600")
     args = cli.parse_args()
-    template = json.loads((ROOT / "templates/facturas.json").read_text(encoding="utf-8"))
+    template = json.loads((ROOT / "source/invoice-catalog.json").read_text(encoding="utf-8"))
     summary = check(args.directory, template)
     print(json.dumps(summary, indent=2))
     if (summary["archives"], summary["documents"], summary["invoice_number_matches"]) != (46, 4600, 4600):

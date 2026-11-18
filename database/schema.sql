@@ -76,4 +76,44 @@ create index if not exists inv_batch_state_ix on inv_batch(state,created_at)
 /
 create index if not exists inv_review_result_ix on inv_review(result_id,review_id)
 /
+declare
+ n number;
+begin
+ select count(*) into n from user_tab_columns where table_name='INV_SETTINGS' and column_name='OBJECT_BASE_URL';
+ if n=0 then execute immediate 'alter table inv_settings add object_base_url varchar2(2048)'; end if;
+end;
+/
+create table if not exists inv_doc_checkpoint (
+ document_id number references inv_document not null, generation number not null,
+ started_at timestamp with time zone default systimestamp not null, finished_at timestamp with time zone,
+ primary key(document_id,generation)
+)
+/
+create table if not exists inv_pdf_test (
+ test_id varchar2(32) primary key, actor varchar2(255) not null,
+ version_id number references inv_template not null, filename varchar2(255 char) not null,
+ file_data blob, result_json clob check(result_json is json strict), claim_id varchar2(32),
+ state varchar2(10) default 'QUEUED' not null check(state in ('QUEUED','RUNNING','DONE','ERROR')),
+ stage varchar2(20) default 'QUEUED' not null, error_code varchar2(80),
+ created_at timestamp with time zone default systimestamp not null, updated_at timestamp with time zone default systimestamp not null
+)
+/
+create index if not exists inv_test_actor_ix on inv_pdf_test(actor,created_at)
+/
+create table if not exists inv_test_page (
+ test_id varchar2(32) references inv_pdf_test on delete cascade not null,
+ page_no number not null check(page_no between 1 and 64),
+ width_px number not null check(width_px between 1 and 1280), height_px number not null check(height_px between 1 and 1280),
+ picture blob not null, primary key(test_id,page_no)
+)
+/
+declare
+ n number;
+begin
+ select count(*) into n from user_tab_columns where table_name='INV_TEST_PAGE' and column_name='OCR_LINES';
+ if n=0 then execute immediate 'alter table inv_test_page add (ocr_total number,ocr_shown number default 0 not null,ocr_lines clob check(ocr_lines is json strict))'; end if;
+ select count(*) into n from user_tab_columns where table_name='INV_TEST_PAGE' and column_name='TEXT_METHOD';
+ if n=0 then execute immediate q'~alter table inv_test_page add (text_method varchar2(6) check(text_method in ('native','ocr')))~'; end if;
+end;
+/
 

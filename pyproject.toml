@@ -1,6 +1,6 @@
 [project]
 name = "oci-invoice-extractor"
-version = "0.1.0"
+version = "0.3.0"
 requires-python = ">=3.11,<3.13"
 dependencies = [
   "fdk>=0.1.90,<1", "oci>=2.150,<3", "oracledb>=3.1,<5",

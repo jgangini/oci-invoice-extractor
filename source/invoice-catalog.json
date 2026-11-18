@@ -1,0 +1,198 @@
+{
+  "name": "Invoice Catalog",
+  "version": 1,
+  "fields": [
+    {
+      "id": "F-01",
+      "group": "Core",
+      "key": "nit_emisor",
+      "label": "Issuer tax ID (NIT)",
+      "type": "string",
+      "definition": "Tax identifier of the party issuing the invoice.",
+      "exclusions": "Use the issuer's tax ID. Exclude the recipient, payer, patient and third parties. Leave multiple plausible matches unresolved.",
+      "normalization": "Keep the original hyphen, check digit and leading zeros. Use a separate value for comparisons.",
+      "source": "Document or scan. Compare with the supplier tax ID in P8.",
+      "applicability": "required",
+      "labels": [
+        "NIT emisor",
+        "NIT del emisor",
+        "NIT del prestador"
+      ]
+    },
+    {
+      "id": "F-02",
+      "group": "Core",
+      "key": "anio_factura",
+      "label": "Issue year",
+      "type": "string",
+      "definition": "Year of the invoice issue date.",
+      "exclusions": "Use the four-digit year of the visible issue date. Exclude service periods, filing dates, due dates and printing dates.",
+      "normalization": "Use YYYY. Using the P8 creation date requires explicit approval.",
+      "source": "Document or scan. P8 stores the record creation date separately.",
+      "applicability": "required",
+      "labels": [
+        "Fecha de expedición",
+        "Fecha de emisión"
+      ],
+      "format": "year"
+    },
+    {
+      "id": "F-03",
+      "group": "Core",
+      "key": "numero_factura",
+      "label": "Invoice number",
+      "type": "string",
+      "definition": "Alphanumeric identifier assigned by the issuer, including the prefix when present.",
+      "exclusions": "Use the primary invoice number. Exclude CUFE, P8 ID, supporting document number, authorization and filing number. Multiple invoices require a selection rule.",
+      "normalization": "Preserve prefixes, hyphens and leading zeros. Apply any additional comparison rules separately.",
+      "source": "Document or scan. Compare with the invoice number recorded in P8.",
+      "applicability": "required",
+      "labels": [
+        "Número de factura",
+        "Factura No.",
+        "Factura de servicios medicos"
+      ]
+    },
+    {
+      "id": "F-04",
+      "group": "Core",
+      "key": "cufe",
+      "label": "Electronic invoice ID (CUFE)",
+      "type": "string",
+      "definition": "Unique electronic invoice identifier, recorded separately from the invoice number.",
+      "exclusions": "Use legible CUFE text visible on the invoice. Exclude the invoice number, CUDE and external metadata.",
+      "normalization": "Keep the entire code as text. Mark it absent when the invoice does not show it.",
+      "source": "Keep any CUFE from P8 separate from the document evidence. The pilot reads PDFs.",
+      "applicability": "conditional",
+      "labels": [
+        "CUFE"
+      ]
+    },
+    {
+      "id": "F-05",
+      "group": "Additional",
+      "key": "fecha_expedicion",
+      "label": "Issue date",
+      "type": "date",
+      "definition": "Date the issuer issued the invoice. This date also supplies the issue year.",
+      "exclusions": "Find the explicit issue date. Exclude P8 intake, service, filing and due dates.",
+      "normalization": "Keep the original text alongside the normalized date. Resolve day and month only when unambiguous.",
+      "source": "Document image. The P8 creation date can differ from the issue date.",
+      "applicability": "optional",
+      "labels": [
+        "Fecha de expedición",
+        "Fecha de emisión"
+      ]
+    },
+    {
+      "id": "F-06",
+      "group": "Additional",
+      "key": "alfa_factura",
+      "label": "Invoice alpha code",
+      "type": "string",
+      "definition": "Additional code used by some suppliers to distinguish repeated invoice numbers.",
+      "exclusions": "Extract it only when explicitly identified and separate from the invoice number. A prefix alone is insufficient.",
+      "normalization": "Keep the literal value and its formatting.",
+      "source": "Some providers include this code on the invoice and in P8.",
+      "applicability": "optional",
+      "labels": [
+        "Alfa factura"
+      ]
+    },
+    {
+      "id": "F-07",
+      "group": "Additional",
+      "key": "nit_receptor",
+      "label": "Recipient tax ID (NIT)",
+      "type": "string",
+      "definition": "Tax identifier of the organization receiving the invoice.",
+      "exclusions": "Use the recipient or buyer tax ID. Exclude the issuer and unrelated parties.",
+      "normalization": "Preserve the original text. Search normalization is a separate decision.",
+      "source": "Document image. P8 may omit recipient details.",
+      "applicability": "optional",
+      "labels": [
+        "NIT receptor",
+        "NIT del adquirente"
+      ]
+    },
+    {
+      "id": "F-08",
+      "group": "Additional",
+      "key": "nombre_receptor",
+      "label": "Recipient name",
+      "type": "string",
+      "definition": "Name of the organization being billed.",
+      "exclusions": "Identify the billed entity. Exclude the provider and patient.",
+      "normalization": "Preserve the name as printed. Name matching requires a separate rule.",
+      "source": "Document image, used to search by billed organization.",
+      "applicability": "optional",
+      "labels": [
+        "Nombre del receptor",
+        "Razón social del adquirente"
+      ]
+    },
+    {
+      "id": "F-09",
+      "group": "Additional",
+      "key": "nombre_paciente",
+      "label": "Patient name",
+      "type": "string",
+      "definition": "Patient associated with the billed services, when identified.",
+      "exclusions": "Extract the explicitly identified patient. Exclude issuer, recipient and clinical staff names.",
+      "normalization": "Keep the literal name. Leave the association unresolved if several patients are listed without a clear mapping.",
+      "source": "Document image. Some invoices contain no patient information.",
+      "applicability": "optional",
+      "labels": [
+        "Paciente",
+        "Nombre del paciente"
+      ]
+    },
+    {
+      "id": "F-10",
+      "group": "Additional",
+      "key": "documento_paciente",
+      "label": "Patient ID",
+      "type": "string",
+      "definition": "Patient identifier when shown on the invoice.",
+      "exclusions": "Require an explicit link to the patient. Exclude issuer and recipient identifiers.",
+      "normalization": "Retain the identifier type when given, its digits and any leading zeros.",
+      "source": "Document image. Apply the access controls appropriate to personal data.",
+      "applicability": "optional",
+      "labels": [
+        "Documento del paciente",
+        "Identificación paciente"
+      ]
+    },
+    {
+      "id": "F-11",
+      "group": "Additional",
+      "key": "descripcion_servicios",
+      "label": "Service description",
+      "type": "string",
+      "definition": "Description of the billed services or items.",
+      "exclusions": "Use the description visible on the invoice. Exclude the filename and generic descriptions from P8.",
+      "normalization": "Preserve the text. Individual line items require a separate extraction design and test.",
+      "source": "Document image. Aggregating by service requires structured line items.",
+      "applicability": "optional",
+      "labels": [
+        "Descripción de servicios"
+      ]
+    },
+    {
+      "id": "F-12",
+      "group": "Additional",
+      "key": "valor_total_factura",
+      "label": "Invoice total",
+      "type": "currency",
+      "definition": "Final amount payable when shown on the invoice.",
+      "exclusions": "Use the grand total. Exclude subtotals, individual taxes, unit prices and previous balances.",
+      "normalization": "Keep the currency, original text and normalized amount separately.",
+      "source": "Document image. Compare with the total recorded in P8 when available.",
+      "applicability": "optional",
+      "labels": [
+        "TOTAL:",
+        "Valor total factura"
+      ]
+    }
+  ]
+}

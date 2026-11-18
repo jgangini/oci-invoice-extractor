@@ -51,6 +51,10 @@ class DeploymentTests(unittest.TestCase):
         self.assertNotIn("visible_when", admin)
         self.assertEqual(admin["generate_password_when"], {"field": "autonomous_database_mode", "equals": "new"})
         self.assertEqual(fields["autonomous_database_version"]["default"], "26ai:OLTP")
+        for name, source in [("existing_vault_id", "oci_active_vaults"), ("existing_key_id", "oci_vault_aes_keys")]:
+            self.assertEqual(fields[name]["options_source"], source)
+            self.assertEqual(fields[name]["visible_when"], {"field": "vault_mode", "equals": "existing"})
+        self.assertEqual(manifest["pre_destroy"]["when"], {"field": "autonomous_database_mode", "equals": "existing"})
 
     def test_oracle_statement_delimiters(self):
         script = "create table t (id number);\n/\nbegin\n null;\nend;\n/\n"
@@ -101,10 +105,29 @@ class DeploymentTests(unittest.TestCase):
                 admin = MagicMock()
                 cur = admin.cursor.return_value.__enter__.return_value
                 cur.fetchone.side_effect = [(1,), (present,)]
-                post_apply.enable_retry(admin, target)
+                post_apply.enable_retry(admin, target, "https://objectstorage.us-chicago-1.oraclecloud.com/n/test/b/test/o/")
                 statements = [call.args[0].lower() for call in cur.execute.call_args_list]
                 self.assertEqual(sum("enable_resource_principal(" in sql for sql in statements), 1 - present)
-                self.assertTrue(any("append_host_ace" in sql for sql in statements))
+                grants = [call.kwargs["host"] for call in cur.execute.call_args_list if "append_host_ace" in call.args[0]]
+                self.assertEqual(grants, ["invoke.us-chicago-1.functions.oci.oraclecloud.com", "objectstorage.us-chicago-1.oraclecloud.com"])
+
+    def test_catalog_upload_does_not_replace_an_existing_object(self):
+        from oci.exceptions import ServiceError
+
+        storage = Mock()
+        outputs = {"object_namespace": "tenant", "bucket_name": "new", "source_prefix": "source/"}
+        catalog = '{"name":"Invoice Catalog"}'
+        post_apply.put_initial_catalog(storage, outputs, catalog)
+        storage.put_object.assert_called_once_with("tenant", "new", "source/invoice-catalog.json",
+                                                   catalog.encode(), content_type="application/json", if_none_match="*")
+        storage.put_object.side_effect = ServiceError(412, "PreconditionFailed", {}, "exists")
+        existing = storage.get_object.return_value.data
+        existing.content = catalog.encode()
+        post_apply.put_initial_catalog(storage, outputs, catalog)
+        existing.content += b"!"
+        with self.assertRaisesRegex(ValueError, "different content"):
+            post_apply.put_initial_catalog(storage, outputs, catalog)
+        self.assertEqual(existing.close.call_count, 2)
 
 
 if __name__ == "__main__":

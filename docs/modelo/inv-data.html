@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / LÁMINA 04">
-      <svg viewBox="0 0 1441 946" role="img" lang="es" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-quality-profile="standard" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+      <svg viewBox="0 0 1801 1202" role="img" lang="es" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-quality-profile="standard" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
         <title id="archify-diagram-title">Modelo de datos de extracción de facturas</title>
         <desc id="archify-diagram-description">INV_DATA · Catálogo, documentos, resultados y aprobaciones</desc>
         <!-- Definitions -->
@@ -5288,10 +5288,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         <!-- Domain bands (behind the routes so a channel is never washed out) -->
         <g data-domain-band="Acceso" class="er-hue-database">
-          <rect x="1100" y="22" width="329" height="458" rx="12" class="c-lane er-band" stroke-width="1"/>
-          <rect x="1108" y="15" width="52" height="15" rx="7.5" class="c-mask"/>
-          <rect x="1108" y="15" width="52" height="15" rx="7.5" class="er-band-pill"/>
-          <text data-domain-label="" x="1115" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Acceso</text>
+          <rect x="1460" y="22" width="329" height="478" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="1468" y="15" width="52" height="15" rx="7.5" class="c-mask"/>
+          <rect x="1468" y="15" width="52" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="1475" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Acceso</text>
         </g>
         <g data-domain-band="Rutas" class="er-hue-frontend">
           <rect x="20" y="22" width="329" height="458" rx="12" class="c-lane er-band" stroke-width="1"/>
@@ -5323,16 +5323,34 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="1108" y="587" width="64" height="15" rx="7.5" class="er-band-pill"/>
           <text data-domain-label="" x="1115" y="597.6" class="t-muted er-band-label" font-size="9" font-weight="700">Revisión</text>
         </g>
+        <g data-domain-band="Lotes" class="er-hue-database">
+          <rect x="1100" y="22" width="329" height="142" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="1108" y="15" width="45" height="15" rx="7.5" class="c-mask"/>
+          <rect x="1108" y="15" width="45" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="1115" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">Lotes</text>
+        </g>
+        <g data-domain-band="Prueba PDF" class="er-hue-frontend">
+          <rect x="20" y="594" width="329" height="222" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="28" y="587" width="76" height="15" rx="7.5" class="c-mask"/>
+          <rect x="28" y="587" width="76" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="35" y="597.6" class="t-muted er-band-label" font-size="9" font-weight="700">Prueba PDF</text>
+        </g>
+        <g data-domain-band="Evidencia" class="er-hue-backend">
+          <rect x="20" y="930" width="329" height="222" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="28" y="923" width="70" height="15" rx="7.5" class="c-mask"/>
+          <rect x="28" y="923" width="70" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="35" y="933.6" class="t-muted er-band-label" font-size="9" font-weight="700">Evidencia</text>
+        </g>
 
         <!-- Bundled relationship trunks (under the branches: a bus runs close
              to the shared side, so a cardinality glyph that reaches further out
              has to stay readable over it, and the ring's mask has to be able to
              punch through) -->
-
+        <path data-er-trunk="" data-composition-points="376,456;376,710" d="M 376 456 L 376 710" class="a-dashed" stroke-width="1.5"/>
 
         <!-- Relationship paths (before entities for correct z-order) -->
         <path data-edge-from="inv_field" data-edge-to="inv_template" data-edge-key="0" data-edge-id="field_template" data-er-ends="many one optional" data-composition-points="544.5,612;544.5,512" d="M 544.5 612 L 544.5 512" class="a-default" data-animate="edge" style="--step:0" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="inv_route" data-edge-to="inv_template" data-edge-key="1" data-edge-id="route_template" data-er-ends="many one optional" data-composition-points="337,424;392,424" d="M 337 424 L 392 424" class="a-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="inv_route" data-edge-to="inv_template" data-edge-key="1" data-edge-id="route_template" data-er-ends="many one optional" data-composition-points="337,432;392,432" d="M 337 432 L 392 432" class="a-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
         <path data-edge-from="inv_route" data-edge-to="inv_target" data-edge-key="2" data-edge-id="route_target" data-er-ends="many one optional" data-composition-points="184.5,376;184.5,116" d="M 184.5 376 L 184.5 116" class="a-dashed" data-animate="edge" style="--step:2" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
         <path data-edge-from="inv_batch" data-edge-to="inv_template" data-edge-key="3" data-edge-id="batch_template" data-er-ends="many one optional" data-composition-points="544.5,316;544.5,376" d="M 544.5 316 L 544.5 376" class="a-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
         <path data-edge-from="inv_batch" data-edge-to="inv_target" data-edge-key="4" data-edge-id="batch_target" data-er-ends="many one optional" data-composition-points="392,100;337,100" d="M 392 100 L 337 100" class="a-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
@@ -5341,68 +5359,78 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <path data-edge-from="inv_result" data-edge-to="inv_run" data-edge-key="7" data-edge-id="result_run" data-er-ends="many one optional" data-composition-points="904.5,612;904.5,552" d="M 904.5 612 L 904.5 552" class="a-dashed" data-animate="edge" style="--step:7" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
         <path data-edge-from="inv_result" data-edge-to="inv_field" data-edge-key="8" data-edge-id="result_field" data-er-ends="many one optional" data-composition-points="752,732;697,732" d="M 752 732 L 697 732" class="a-dashed" data-animate="edge" style="--step:8" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
         <path data-edge-from="inv_review" data-edge-to="inv_result" data-edge-key="9" data-edge-id="review_result" data-er-ends="many one optional" data-composition-points="1112,690;1057,690" d="M 1112 690 L 1057 690" class="a-dashed" data-animate="edge" style="--step:9" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="inv_doc_checkpoint" data-edge-to="inv_document" data-edge-key="10" data-edge-id="checkpoint_document" data-er-ends="many one optional" data-composition-points="1112,98;1057,98" d="M 1112 98 L 1057 98" class="a-default" data-animate="edge" style="--step:10" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="inv_pdf_test" data-edge-to="inv_template" data-edge-key="11" data-edge-id="test_template" data-er-ends="many one optional" data-composition-points="337,710;376,710;376,456;392,456" d="M 337 710 L 376 710 M 376 456 L 392 456" class="a-dashed" data-animate="edge" style="--step:11" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="inv_test_page" data-edge-to="inv_pdf_test" data-edge-key="12" data-edge-id="page_test" data-er-ends="many one optional" data-composition-points="184.5,948;184.5,808" d="M 184.5 948 L 184.5 808" class="a-default" data-animate="edge" style="--step:12" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
 
         <!-- Entities -->
         <g id="node-inv_operator" data-node-id="inv_operator" data-node-label="INV_OPERATOR" tabindex="0" role="button" aria-label="Enfocar INV_OPERATOR, Entidad" aria-pressed="false" data-node-kind="database" data-node-tag="Acceso" data-node-context="Entidad" class="er-hue-database">
           <title>INV_OPERATOR · Entidad · Acceso</title>
-          <rect x="1112" y="40" width="305" height="76" rx="8" class="c-mask"/>
-          <rect x="1112" y="40" width="305" height="76" rx="8" class="c-database er-table" data-animate="node" style="--step:0" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 1120 40 H 1409 A 8 8 0 0 1 1417 48 V 70 H 1112 V 48 A 8 8 0 0 1 1120 40 Z"/>
-          <path class="er-table-cap" d="M 1124 41.4 H 1405" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1120 47) scale(0.875)">
+          <rect x="1472" y="40" width="305" height="76" rx="8" class="c-mask"/>
+          <rect x="1472" y="40" width="305" height="76" rx="8" class="c-database er-table" data-animate="node" style="--step:0" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1480 40 H 1769 A 8 8 0 0 1 1777 48 V 70 H 1472 V 48 A 8 8 0 0 1 1480 40 Z"/>
+          <path class="er-table-cap" d="M 1484 41.4 H 1765" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1480 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="1264.5" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">INV_OPERATOR</text>
-          <line x1="1112" y1="70" x2="1417" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="1624.5" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">INV_OPERATOR</text>
+          <line x1="1472" y1="70" x2="1777" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="1112" y1="70" x2="1417" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1472" y1="70" x2="1777" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="1122" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1133" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="1154" y="85" class="t-primary er-name-pk" font-size="11">username</text>
-            <text data-detail="context" x="1405" y="85" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(255)</text>
+            <rect x="1482" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1493" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1514" y="85" class="t-primary er-name-pk" font-size="11">username</text>
+            <text data-detail="context" x="1765" y="85" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(255)</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="1112" y1="90" x2="1417" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="1116" y="91" width="297" height="18" rx="4" class="er-zebra"/>
+            <line x1="1472" y1="90" x2="1777" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1476" y="91" width="297" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="1154" y="105" class="t-primary" font-size="11">permission</text>
-            <text data-detail="context" x="1405" y="105" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(10)</text>
+            <text data-detail="context" x="1514" y="105" class="t-primary" font-size="11">permission</text>
+            <text data-detail="context" x="1765" y="105" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(10)</text>
           </g>
         </g>
 
         <g id="node-inv_settings" data-node-id="inv_settings" data-node-label="INV_SETTINGS" tabindex="0" role="button" aria-label="Enfocar INV_SETTINGS, Entidad" aria-pressed="false" data-node-kind="database" data-node-tag="Acceso" data-node-context="Entidad" class="er-hue-database">
           <title>INV_SETTINGS · Entidad · Acceso</title>
-          <rect x="1112" y="376" width="305" height="96" rx="8" class="c-mask"/>
-          <rect x="1112" y="376" width="305" height="96" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 1120 376 H 1409 A 8 8 0 0 1 1417 384 V 406 H 1112 V 384 A 8 8 0 0 1 1120 376 Z"/>
-          <path class="er-table-cap" d="M 1124 377.4 H 1405" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1120 383) scale(0.875)">
+          <rect x="1472" y="376" width="305" height="116" rx="8" class="c-mask"/>
+          <rect x="1472" y="376" width="305" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1480 376 H 1769 A 8 8 0 0 1 1777 384 V 406 H 1472 V 384 A 8 8 0 0 1 1480 376 Z"/>
+          <path class="er-table-cap" d="M 1484 377.4 H 1765" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1480 383) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="1264.5" y="395" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">INV_SETTINGS</text>
-          <line x1="1112" y1="406" x2="1417" y2="406" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="1624.5" y="395" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">INV_SETTINGS</text>
+          <line x1="1472" y1="406" x2="1777" y2="406" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="1112" y1="406" x2="1417" y2="406" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1472" y1="406" x2="1777" y2="406" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="1122" y="411" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1133" y="421" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="1154" y="421" class="t-primary er-name-pk" font-size="11">id</text>
-            <text data-detail="context" x="1405" y="421" class="er-type" font-size="10.5" text-anchor="end">NUMBER</text>
+            <rect x="1482" y="411" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1493" y="421" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1514" y="421" class="t-primary er-name-pk" font-size="11">id</text>
+            <text data-detail="context" x="1765" y="421" class="er-type" font-size="10.5" text-anchor="end">NUMBER</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="1112" y1="426" x2="1417" y2="426" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="1116" y="427" width="297" height="18" rx="4" class="er-zebra"/>
+            <line x1="1472" y1="426" x2="1777" y2="426" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1476" y="427" width="297" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="1154" y="441" class="t-primary" font-size="11">invoke_url</text>
-            <text data-detail="context" x="1405" y="441" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(2048)</text>
+            <text data-detail="context" x="1514" y="441" class="t-primary" font-size="11">invoke_url</text>
+            <text data-detail="context" x="1765" y="441" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(2048)</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="1112" y1="446" x2="1417" y2="446" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1472" y1="446" x2="1777" y2="446" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="1154" y="461" class="t-primary" font-size="11">source_prefix</text>
-            <text data-detail="context" x="1405" y="461" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(512)</text>
+            <text data-detail="context" x="1514" y="461" class="t-primary" font-size="11">source_prefix</text>
+            <text data-detail="context" x="1765" y="461" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(512)</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="1472" y1="466" x2="1777" y2="466" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1476" y="467" width="297" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1514" y="481" class="t-primary" font-size="11">object_base_url</text>
+            <text data-detail="context" x="1765" y="481" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(2048)</text>
           </g>
         </g>
 
@@ -5924,35 +5952,217 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </g>
         </g>
 
+        <g id="node-inv_doc_checkpoint" data-node-id="inv_doc_checkpoint" data-node-label="INV_DOC_CHECKPOINT" tabindex="0" role="button" aria-label="Enfocar INV_DOC_CHECKPOINT, Entidad" aria-pressed="false" data-node-kind="database" data-node-tag="Lotes" data-node-context="Entidad" class="er-hue-database">
+          <title>INV_DOC_CHECKPOINT · Entidad · Lotes</title>
+          <rect x="1112" y="40" width="305" height="116" rx="8" class="c-mask"/>
+          <rect x="1112" y="40" width="305" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:10" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1120 40 H 1409 A 8 8 0 0 1 1417 48 V 70 H 1112 V 48 A 8 8 0 0 1 1120 40 Z"/>
+          <path class="er-table-cap" d="M 1124 41.4 H 1405" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1120 47) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1264.5" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">INV_DOC_CHECKPOINT</text>
+          <line x1="1112" y1="70" x2="1417" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="1112" y1="70" x2="1417" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="1122" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="1133" y="85" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="1154" y="85" class="t-primary" font-size="11">document_id</text>
+            <text data-detail="context" x="1405" y="85" class="er-type" font-size="10.5" text-anchor="end">NUMBER</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="1112" y1="90" x2="1417" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1116" y="91" width="297" height="18" rx="4" class="er-zebra"/>
+            <rect x="1122" y="95" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1133" y="105" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1154" y="105" class="t-primary er-name-pk" font-size="11">generation</text>
+            <text data-detail="context" x="1405" y="105" class="er-type" font-size="10.5" text-anchor="end">NUMBER</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="1112" y1="110" x2="1417" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1154" y="125" class="t-primary" font-size="11">started_at</text>
+            <text data-detail="context" x="1405" y="125" class="er-type" font-size="10.5" text-anchor="end">TIMESTAMP WITH TIME ZONE</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="1112" y1="130" x2="1417" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1116" y="131" width="297" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1154" y="145" class="t-primary" font-size="11">finished_at</text>
+            <text data-detail="context" x="1405" y="145" class="er-type" font-size="10.5" text-anchor="end">TIMESTAMP WITH TIME ZONE</text>
+          </g>
+        </g>
+
+        <g id="node-inv_pdf_test" data-node-id="inv_pdf_test" data-node-label="INV_PDF_TEST" tabindex="0" role="button" aria-label="Enfocar INV_PDF_TEST, Entidad" aria-pressed="false" data-node-kind="database" data-node-tag="Prueba PDF" data-node-context="Entidad" class="er-hue-frontend">
+          <title>INV_PDF_TEST · Entidad · Prueba PDF</title>
+          <rect x="32" y="612" width="305" height="196" rx="8" class="c-mask"/>
+          <rect x="32" y="612" width="305" height="196" rx="8" class="c-database er-table" data-animate="node" style="--step:11" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 612 H 329 A 8 8 0 0 1 337 620 V 642 H 32 V 620 A 8 8 0 0 1 40 612 Z"/>
+          <path class="er-table-cap" d="M 44 613.4 H 325" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 619) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="184.5" y="631" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">INV_PDF_TEST</text>
+          <line x1="32" y1="642" x2="337" y2="642" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="32" y1="642" x2="337" y2="642" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="42" y="647" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="657" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="74" y="657" class="t-primary er-name-pk" font-size="11">test_id</text>
+            <text data-detail="context" x="325" y="657" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(32)</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="32" y1="662" x2="337" y2="662" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="663" width="297" height="18" rx="4" class="er-zebra"/>
+            <rect x="42" y="667" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="53" y="677" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="74" y="677" class="t-primary" font-size="11">version_id</text>
+            <text data-detail="context" x="325" y="677" class="er-type" font-size="10.5" text-anchor="end">NUMBER</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="32" y1="682" x2="337" y2="682" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="74" y="697" class="t-primary" font-size="11">actor</text>
+            <text data-detail="context" x="325" y="697" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(255)</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="32" y1="702" x2="337" y2="702" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="703" width="297" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="717" class="t-primary" font-size="11">filename</text>
+            <text data-detail="context" x="325" y="717" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(255 CHAR)</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="32" y1="722" x2="337" y2="722" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="74" y="737" class="t-primary" font-size="11">state</text>
+            <text data-detail="context" x="325" y="737" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(10)</text>
+          </g>
+          <g data-detail="context" data-er-row="5">
+            <line x1="32" y1="742" x2="337" y2="742" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="743" width="297" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="757" class="t-primary" font-size="11">stage</text>
+            <text data-detail="context" x="325" y="757" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(20)</text>
+          </g>
+          <g data-detail="context" data-er-row="6">
+            <line x1="32" y1="762" x2="337" y2="762" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="74" y="777" class="t-primary" font-size="11">file_data</text>
+            <text data-detail="context" x="325" y="777" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="7">
+            <line x1="32" y1="782" x2="337" y2="782" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="783" width="297" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="797" class="t-primary" font-size="11">result_json</text>
+            <text data-detail="context" x="325" y="797" class="er-type" font-size="10.5" text-anchor="end">CLOB</text>
+          </g>
+        </g>
+
+        <g id="node-inv_test_page" data-node-id="inv_test_page" data-node-label="INV_TEST_PAGE" tabindex="0" role="button" aria-label="Enfocar INV_TEST_PAGE, Entidad" aria-pressed="false" data-node-kind="database" data-node-tag="Evidencia" data-node-context="Entidad" class="er-hue-backend">
+          <title>INV_TEST_PAGE · Entidad · Evidencia</title>
+          <rect x="32" y="948" width="305" height="196" rx="8" class="c-mask"/>
+          <rect x="32" y="948" width="305" height="196" rx="8" class="c-database er-table" data-animate="node" style="--step:12" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 948 H 329 A 8 8 0 0 1 337 956 V 978 H 32 V 956 A 8 8 0 0 1 40 948 Z"/>
+          <path class="er-table-cap" d="M 44 949.4 H 325" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 955) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="184.5" y="967" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">INV_TEST_PAGE</text>
+          <line x1="32" y1="978" x2="337" y2="978" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="32" y1="978" x2="337" y2="978" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="42" y="983" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text data-detail="context" x="53" y="993" class="t-messagebus" font-size="9" font-weight="600">FK</text>
+            <text data-detail="context" x="74" y="993" class="t-primary" font-size="11">test_id</text>
+            <text data-detail="context" x="325" y="993" class="er-type" font-size="10.5" text-anchor="end">VARCHAR2(32)</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="32" y1="998" x2="337" y2="998" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="999" width="297" height="18" rx="4" class="er-zebra"/>
+            <rect x="42" y="1003" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="1013" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="74" y="1013" class="t-primary er-name-pk" font-size="11">page_no</text>
+            <text data-detail="context" x="325" y="1013" class="er-type" font-size="10.5" text-anchor="end">NUMBER</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="32" y1="1018" x2="337" y2="1018" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="74" y="1033" class="t-primary" font-size="11">picture</text>
+            <text data-detail="context" x="325" y="1033" class="er-type" font-size="10.5" text-anchor="end">BLOB</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="32" y1="1038" x2="337" y2="1038" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="1039" width="297" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="1053" class="t-primary" font-size="11">width_px</text>
+            <text data-detail="context" x="325" y="1053" class="er-type" font-size="10.5" text-anchor="end">NUMBER</text>
+          </g>
+          <g data-detail="context" data-er-row="4">
+            <line x1="32" y1="1058" x2="337" y2="1058" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="74" y="1073" class="t-primary" font-size="11">height_px</text>
+            <text data-detail="context" x="325" y="1073" class="er-type" font-size="10.5" text-anchor="end">NUMBER</text>
+          </g>
+          <g data-detail="context" data-er-row="5">
+            <line x1="32" y1="1078" x2="337" y2="1078" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="1079" width="297" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="1093" class="t-primary" font-size="11">ocr_total</text>
+            <text data-detail="context" x="325" y="1093" class="er-type" font-size="10.5" text-anchor="end">NUMBER</text>
+          </g>
+          <g data-detail="context" data-er-row="6">
+            <line x1="32" y1="1098" x2="337" y2="1098" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="74" y="1113" class="t-primary" font-size="11">ocr_shown</text>
+            <text data-detail="context" x="325" y="1113" class="er-type" font-size="10.5" text-anchor="end">NUMBER</text>
+          </g>
+          <g data-detail="context" data-er-row="7">
+            <line x1="32" y1="1118" x2="337" y2="1118" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="1119" width="297" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="1133" class="t-primary" font-size="11">ocr_lines</text>
+            <text data-detail="context" x="325" y="1133" class="er-type" font-size="10.5" text-anchor="end">CLOB</text>
+          </g>
+        </g>
+
         <!-- Relationship labels -->
 
 
         <!-- Legend -->
         <g data-legend="">
-          <text x="24" y="910" class="t-primary" font-size="12" font-weight="650">Leyenda</text>
-          <g data-legend-semantic-kind="pk" data-legend-x="24" data-legend-baseline="930" data-legend-width="153">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Clave primaria" x="18" y="915" width="165" height="22" rx="11"/><rect x="24" y="920" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text x="35" y="930" class="t-database" text-anchor="middle" font-size="9" font-weight="600">PK</text>
-            <text x="54" y="930" class="t-primary" font-size="12" font-weight="600">Clave primaria</text>
+          <text x="24" y="1166" class="t-primary" font-size="12" font-weight="650">Leyenda</text>
+          <g data-legend-semantic-kind="pk" data-legend-x="24" data-legend-baseline="1186" data-legend-width="153">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Clave primaria" x="18" y="1171" width="165" height="22" rx="11"/><rect x="24" y="1176" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text x="35" y="1186" class="t-database" text-anchor="middle" font-size="9" font-weight="600">PK</text>
+            <text x="54" y="1186" class="t-primary" font-size="12" font-weight="600">Clave primaria</text>
           </g>
-          <g data-legend-semantic-kind="fk" data-legend-x="199" data-legend-baseline="930" data-legend-width="144">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Clave foránea" x="193" y="915" width="156" height="22" rx="11"/><rect x="199" y="920" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text x="210" y="930" class="t-messagebus" text-anchor="middle" font-size="9" font-weight="600">FK</text>
-            <text x="229" y="930" class="t-primary" font-size="12" font-weight="600">Clave foránea</text>
+          <g data-legend-semantic-kind="fk" data-legend-x="199" data-legend-baseline="1186" data-legend-width="144">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Clave foránea" x="193" y="1171" width="156" height="22" rx="11"/><rect x="199" y="1176" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="fk"/><text x="210" y="1186" class="t-messagebus" text-anchor="middle" font-size="9" font-weight="600">FK</text>
+            <text x="229" y="1186" class="t-primary" font-size="12" font-weight="600">Clave foránea</text>
           </g>
-          <g data-legend-semantic-kind="uk" data-legend-x="365" data-legend-baseline="930" data-legend-width="126">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Clave única" x="359" y="915" width="138" height="22" rx="11"/><rect x="365" y="920" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text x="376" y="930" class="t-muted" text-anchor="middle" font-size="9" font-weight="600">UK</text>
-            <text x="395" y="930" class="t-primary" font-size="12" font-weight="600">Clave única</text>
+          <g data-legend-semantic-kind="uk" data-legend-x="365" data-legend-baseline="1186" data-legend-width="126">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Clave única" x="359" y="1171" width="138" height="22" rx="11"/><rect x="365" y="1176" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text x="376" y="1186" class="t-muted" text-anchor="middle" font-size="9" font-weight="600">UK</text>
+            <text x="395" y="1186" class="t-primary" font-size="12" font-weight="600">Clave única</text>
           </g>
-          <g data-legend-semantic-kind="one" data-legend-x="513" data-legend-baseline="930" data-legend-width="75">
-            <line x1="509" y1="918" x2="509" y2="934" class="er-legend-divider" stroke-width="1"/><rect class="er-legend-hit" tabindex="0" role="img" aria-label="Uno" x="517" y="915" width="77" height="22" rx="11"/><line x1="523" y1="926" x2="551" y2="926" class="er-legend-route" stroke-width="1.5"/><line x1="551" y1="919" x2="551" y2="933" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(529 918)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 17 1 L 17 15"/></g>
-            <text x="561" y="930" class="t-primary" font-size="12" font-weight="600">Uno</text>
+          <g data-legend-semantic-kind="one" data-legend-x="513" data-legend-baseline="1186" data-legend-width="75">
+            <line x1="509" y1="1174" x2="509" y2="1190" class="er-legend-divider" stroke-width="1"/><rect class="er-legend-hit" tabindex="0" role="img" aria-label="Uno" x="517" y="1171" width="77" height="22" rx="11"/><line x1="523" y1="1182" x2="551" y2="1182" class="er-legend-route" stroke-width="1.5"/><line x1="551" y1="1175" x2="551" y2="1189" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(529 1174)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 17 1 L 17 15"/></g>
+            <text x="561" y="1186" class="t-primary" font-size="12" font-weight="600">Uno</text>
           </g>
-          <g data-legend-semantic-kind="many" data-legend-x="610" data-legend-baseline="930" data-legend-width="91">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Muchos" x="604" y="915" width="103" height="22" rx="11"/><line x1="610" y1="926" x2="638" y2="926" class="er-legend-route" stroke-width="1.5"/><line x1="638" y1="919" x2="638" y2="933" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(616 918)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 8 8 L 22 1 M 8 8 L 22 8 M 8 8 L 22 15"/></g>
-            <text x="648" y="930" class="t-primary" font-size="12" font-weight="600">Muchos</text>
+          <g data-legend-semantic-kind="many" data-legend-x="610" data-legend-baseline="1186" data-legend-width="91">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Muchos" x="604" y="1171" width="103" height="22" rx="11"/><line x1="610" y1="1182" x2="638" y2="1182" class="er-legend-route" stroke-width="1.5"/><line x1="638" y1="1175" x2="638" y2="1189" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(616 1174)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 8 8 L 22 1 M 8 8 L 22 8 M 8 8 L 22 15"/></g>
+            <text x="648" y="1186" class="t-primary" font-size="12" font-weight="600">Muchos</text>
           </g>
-          <g data-legend-semantic-kind="optional" data-legend-x="723" data-legend-baseline="930" data-legend-width="108">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Opcional" x="717" y="915" width="120" height="22" rx="11"/><line x1="723" y1="926" x2="751" y2="926" class="er-legend-route" stroke-width="1.5"/><line x1="751" y1="919" x2="751" y2="933" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(729 918)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><circle cx="3.5" cy="8" r="2.6" class="c-mask"/><circle cx="3.5" cy="8" r="2.6"/></g>
-            <text x="761" y="930" class="t-primary" font-size="12" font-weight="600">Opcional</text>
+          <g data-legend-semantic-kind="optional" data-legend-x="723" data-legend-baseline="1186" data-legend-width="108">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="Opcional" x="717" y="1171" width="120" height="22" rx="11"/><line x1="723" y1="1182" x2="751" y2="1182" class="er-legend-route" stroke-width="1.5"/><line x1="751" y1="1175" x2="751" y2="1189" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(729 1174)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><circle cx="3.5" cy="8" r="2.6" class="c-mask"/><circle cx="3.5" cy="8" r="2.6"/></g>
+            <text x="761" y="1186" class="t-primary" font-size="12" font-weight="600">Opcional</text>
           </g>
         </g>
       </svg>
@@ -6162,6 +6372,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <ul>
           <li>INV_V_RESULTS recupera el resultado más reciente por documento y campo y la última aprobación humana. Una diferencia entre ambos se presenta para revisión.</li>
           <li>Fuentes del checkout local: database/schema.sql define las tablas e índices. En database/api.sql se encuentran los paquetes INV_UI e INV_INGEST y la vista INV_V_RESULTS.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot cyan"></div>
+          <h3>Prueba individual y seguimiento</h3>
+        </div>
+        <ul>
+          <li>INV_TEST_PAGE reúne la miniatura de la página y sus fragmentos OCR. El campo result_json de INV_PDF_TEST contiene los resultados y sus posiciones verificadas.</li>
+          <li>INV_DOC_CHECKPOINT registra inicio y fin por documento y generación. El monitor calcula el tiempo restante a partir del trabajo terminado.</li>
         </ul>
       </div>
     </div>

@@ -73,9 +73,10 @@ resource "oci_identity_policy" "source_objects" {
   provider       = oci.identity
   compartment_id = local.source_bucket.compartment_id
   name           = "${local.name}-source-objects"
-  description    = "Read invoice uploads under the selected prefix."
+  description    = "Read invoices from Functions and create uploads from APEX under the selected prefix."
   statements = [
-    "Allow any-user to read objects in compartment id ${local.source_bucket.compartment_id} where all {request.principal.type='fnfunc', request.principal.id='${oci_functions_function.extractor.id}', target.bucket.name='${local.source_bucket.name}', target.object.name='${var.source_prefix}*'}"
+    "Allow any-user to read objects in compartment id ${local.source_bucket.compartment_id} where all {request.principal.type='fnfunc', request.principal.id='${oci_functions_function.extractor.id}', target.bucket.name='${local.source_bucket.name}', target.object.name='${var.source_prefix}*'}",
+    "Allow any-user to manage objects in compartment id ${local.source_bucket.compartment_id} where all {request.principal.type='autonomousdatabase', request.principal.id='${local.database_id}', request.permission='OBJECT_CREATE', target.bucket.name='${local.source_bucket.name}', target.object.name='${var.source_prefix}*'}",
   ]
 }
 
