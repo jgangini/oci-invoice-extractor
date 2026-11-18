@@ -19,59 +19,60 @@
     "groups": [
       {
         "id": "credentials",
-        "title": "Credenciales OCI",
+        "title": "OCI credentials",
         "items": [
           {
             "kind": "control",
             "name": "oci_config",
-            "label": "Configuración OCI"
+            "label": "OCI config"
           },
           {
             "kind": "control",
             "name": "oci_key",
-            "label": "Clave privada OCI"
+            "label": "API private key"
           }
         ]
       },
       {
         "id": "deployment",
-        "title": "Destino OCI",
+        "title": "Services to deploy",
         "items": [
           {
             "kind": "control",
             "name": "oci_region",
-            "label": "Región OCI"
+            "label": "OCI region",
+            "span": 2
           },
           {
             "kind": "control",
             "name": "compartment_mode",
-            "label": "Modo de compartimento",
+            "label": "Compartment mode",
             "options": [
               {
                 "value": "new",
-                "label": "Nuevo"
+                "label": "New compartment"
               },
               {
                 "value": "existing",
-                "label": "Existente"
+                "label": "Existing compartment"
               }
             ]
           },
           {
             "kind": "control",
             "name": "new_compartment",
-            "label": "Nombre del nuevo compartimento"
+            "label": "New compartment name"
           },
           {
             "kind": "control",
             "name": "existing_compartment",
-            "label": "Compartimento existente"
+            "label": "Existing compartment"
           }
         ]
       },
       {
         "id": "image",
-        "title": "Imagen de la Function",
+        "title": "Function image",
         "items": [
           {
             "kind": "field",
@@ -85,7 +86,7 @@
       },
       {
         "id": "database",
-        "title": "Autonomous Database y red",
+        "title": "Autonomous Database and network",
         "items": [
           {
             "kind": "field",
@@ -97,13 +98,14 @@
           },
           {
             "kind": "field",
-            "name": "access_cidrs"
+            "name": "access_cidrs",
+            "span": 2
           }
         ]
       },
       {
         "id": "ingest",
-        "title": "Extracción y acceso APEX",
+        "title": "Extraction and APEX access",
         "items": [
           {
             "kind": "field",
@@ -123,41 +125,41 @@
     "fields": [
       {
         "name": "function_image_ocid",
-        "label": "OCID de la imagen de la release",
+        "label": "Container image OCID",
         "type": "text",
         "required": true,
         "pattern": "^ocid1\\.containerimage\\.[a-z0-9.-]+$"
       },
       {
         "name": "function_image_digest",
-        "label": "Digest SHA-256 publicado",
+        "label": "Image digest (SHA-256)",
         "type": "text",
         "required": true,
         "pattern": "^sha256:[0-9a-f]{64}$"
       },
       {
         "name": "admin_secret_ocid",
-        "label": "OCID del secreto de ADMIN en Vault",
+        "label": "ADMIN Vault secret OCID",
         "type": "text",
         "required": true,
         "pattern": "^ocid1\\.vaultsecret\\.[a-z0-9.-]+$"
       },
       {
         "name": "runtime_secret_ocid",
-        "label": "OCID del secreto de INV_FN en Vault",
+        "label": "INV_FN Vault secret OCID",
         "type": "text",
         "required": true,
         "pattern": "^ocid1\\.vaultsecret\\.[a-z0-9.-]+$"
       },
       {
         "name": "access_cidrs",
-        "label": "Redes IPv4 autorizadas del worker y los usuarios APEX (/24 a /32, separadas por coma)",
+        "label": "Worker and APEX IPv4 CIDRs (/24 to /32, comma-separated)",
         "type": "text",
         "required": true
       },
       {
         "name": "source_prefix",
-        "label": "Carpeta raíz de entrada",
+        "label": "Input folder prefix",
         "type": "text",
         "required": true,
         "pattern": "^([A-Za-z0-9_-]+/)+$",
@@ -165,7 +167,7 @@
       },
       {
         "name": "apex_operator",
-        "label": "Usuario inicial de la aplicación",
+        "label": "Initial APEX username",
         "type": "text",
         "required": true,
         "pattern": "^[A-Za-z][A-Za-z0-9_.-]{2,63}$",
@@ -173,7 +175,7 @@
       },
       {
         "name": "apex_operator_password",
-        "label": "Contraseña inicial del operador APEX",
+        "label": "Initial APEX password",
         "type": "password",
         "required": true,
         "secret": true,
@@ -185,7 +187,7 @@
   },
   "presentation": {
     "title": "OCI Invoice Extractor",
-    "summary": "Extrae datos de archivos de facturación con OCI Functions y revisa sus resultados en Oracle APEX.",
+    "summary": "Extract invoice fields from ZIP files with OCI Functions and review the results in Oracle APEX.",
     "tags": [
       "OCI Functions",
       "APEX",
@@ -196,35 +198,35 @@
   "run_steps": [
     {
       "key": "queue",
-      "label": "En cola"
+      "label": "Queued"
     },
     {
       "key": "credentials",
-      "label": "Verificar credenciales y release"
+      "label": "Verify credentials and release"
     },
     {
       "key": "compartment",
-      "label": "Resolver compartimento"
+      "label": "Resolve compartment"
     },
     {
       "key": "stack",
-      "label": "Preparar Resource Manager"
+      "label": "Prepare Resource Manager stack"
     },
     {
       "key": "plan",
-      "label": "Verificar plan"
+      "label": "Validate plan"
     },
     {
       "key": "apply",
-      "label": "Aprovisionar recursos"
+      "label": "Provision resources"
     },
     {
       "key": "application",
-      "label": "Instalar esquema, APEX y habilitar eventos"
+      "label": "Install database schemas and APEX, then enable events"
     },
     {
       "key": "complete",
-      "label": "Completar instalación"
+      "label": "Complete deployment"
     }
   ],
   "outputs": [
