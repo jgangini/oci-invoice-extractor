@@ -12,8 +12,9 @@
       "existing"
     ],
     "default_compartment_name": "oci-invoice-extractor",
-    "database_profile": "new",
-    "region_selection": "subscribed_compatible"
+    "database_profile": "new_or_existing",
+    "region_selection": "subscribed_compatible",
+    "existing_database_wallet": "none"
   },
   "form": {
     "groups": [
@@ -71,30 +72,46 @@
         ]
       },
       {
-        "id": "image",
-        "title": "Function image",
+        "id": "storage",
+        "title": "Object Storage",
         "items": [
           {
             "kind": "field",
-            "name": "function_image_ocid"
+            "name": "bucket_mode"
           },
           {
             "kind": "field",
-            "name": "function_image_digest"
+            "name": "new_bucket_name"
+          },
+          {
+            "kind": "field",
+            "name": "existing_bucket_name"
+          },
+          {
+            "kind": "field",
+            "name": "source_prefix"
           }
         ]
       },
       {
         "id": "database",
-        "title": "Autonomous Database and network",
+        "title": "Autonomous Database",
         "items": [
           {
             "kind": "field",
-            "name": "admin_secret_ocid"
+            "name": "autonomous_database_mode"
           },
           {
             "kind": "field",
-            "name": "runtime_secret_ocid"
+            "name": "autonomous_database_name"
+          },
+          {
+            "kind": "field",
+            "name": "existing_autonomous_database_id"
+          },
+          {
+            "kind": "field",
+            "name": "autonomous_database_admin_password"
           },
           {
             "kind": "field",
@@ -104,13 +121,9 @@
         ]
       },
       {
-        "id": "ingest",
-        "title": "Extraction and APEX access",
+        "id": "apex",
+        "title": "APEX access",
         "items": [
-          {
-            "kind": "field",
-            "name": "source_prefix"
-          },
           {
             "kind": "field",
             "name": "apex_operator"
@@ -124,45 +137,112 @@
     ],
     "fields": [
       {
-        "name": "function_image_ocid",
-        "label": "Container image OCID",
-        "type": "text",
+        "name": "bucket_mode",
+        "label": "Bucket mode",
+        "type": "select",
         "required": true,
-        "pattern": "^ocid1\\.containerimage\\.[a-z0-9.-]+$"
+        "default": "new",
+        "options": [
+          {
+            "value": "new",
+            "label": "Create new bucket"
+          },
+          {
+            "value": "existing",
+            "label": "Use existing bucket"
+          }
+        ]
       },
       {
-        "name": "function_image_digest",
-        "label": "Image digest (SHA-256)",
+        "name": "new_bucket_name",
+        "label": "New bucket name",
         "type": "text",
         "required": true,
-        "pattern": "^sha256:[0-9a-f]{64}$"
+        "default": "invoice-uploads",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_\\-]{0,254}$",
+        "visible_when": {
+          "field": "bucket_mode",
+          "equals": "new"
+        }
       },
       {
-        "name": "admin_secret_ocid",
-        "label": "ADMIN Vault secret OCID",
-        "type": "text",
+        "name": "existing_bucket_name",
+        "label": "Existing bucket",
+        "type": "select",
         "required": true,
-        "pattern": "^ocid1\\.vaultsecret\\.[a-z0-9.-]+$"
+        "options_source": "oci_active_buckets",
+        "visible_when": {
+          "field": "bucket_mode",
+          "equals": "existing"
+        }
       },
       {
-        "name": "runtime_secret_ocid",
-        "label": "INV_FN Vault secret OCID",
+        "name": "autonomous_database_mode",
+        "label": "Database mode",
+        "type": "select",
+        "required": true,
+        "default": "new",
+        "options": [
+          {
+            "value": "new",
+            "label": "Create new database"
+          },
+          {
+            "value": "existing",
+            "label": "Use existing database"
+          }
+        ]
+      },
+      {
+        "name": "autonomous_database_name",
+        "label": "New database name",
         "type": "text",
         "required": true,
-        "pattern": "^ocid1\\.vaultsecret\\.[a-z0-9.-]+$"
+        "default": "INVOICES",
+        "pattern": "^[A-Za-z][A-Za-z0-9]{0,29}$",
+        "visible_when": {
+          "field": "autonomous_database_mode",
+          "equals": "new"
+        }
+      },
+      {
+        "name": "existing_autonomous_database_id",
+        "label": "Existing database",
+        "type": "select",
+        "required": true,
+        "options_source": "oci_autonomous_oltp_databases",
+        "visible_when": {
+          "field": "autonomous_database_mode",
+          "equals": "existing"
+        }
+      },
+      {
+        "name": "autonomous_database_admin_password",
+        "label": "Database ADMIN password",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "visible_when": {
+          "field": "autonomous_database_mode",
+          "equals": "existing"
+        }
       },
       {
         "name": "access_cidrs",
-        "label": "Worker and APEX IPv4 CIDRs (/24 to /32, comma-separated)",
+        "label": "Allowed IP ranges",
         "type": "text",
-        "required": true
+        "required": true,
+        "visible_when": {
+          "field": "autonomous_database_mode",
+          "equals": "new"
+        }
       },
       {
         "name": "source_prefix",
         "label": "Input folder prefix",
         "type": "text",
         "required": true,
-        "pattern": "^([A-Za-z0-9_-]+/)+$",
+        "pattern": "^([A-Za-z0-9_\\-]+/)+$",
         "default": "entrada/"
       },
       {
@@ -170,7 +250,7 @@
         "label": "Initial APEX username",
         "type": "text",
         "required": true,
-        "pattern": "^[A-Za-z][A-Za-z0-9_.-]{2,63}$",
+        "pattern": "^[A-Za-z][A-Za-z0-9_.\\-]{2,63}$",
         "default": "INVOICE_ADMIN"
       },
       {
@@ -239,22 +319,52 @@
     "source_prefix",
     "event_rule_id",
     "function_id",
-    "function_invoke_url"
+    "function_invoke_url",
+    "bucket_compartment_id",
+    "runtime_secret_ocid",
+    "admin_secret_ocid"
   ],
   "preflight": {
     "entrypoint": "deploy/hooks/preflight.py",
-    "requires_oci_credentials": true
+    "requires_oci_credentials": true,
+    "secret_inputs": [
+      "autonomous_database_admin_password"
+    ],
+    "release_assets": [
+      {
+        "name": "function-image.tar",
+        "max_bytes": 1073741824,
+        "download": false
+      }
+    ]
   },
   "post_apply": {
     "entrypoint": "deploy/hooks/post_apply.py",
     "requires_oci_credentials": true,
     "secret_inputs": [
-      "apex_operator_password"
+      "apex_operator_password",
+      "autonomous_database_admin_password"
     ],
     "include_paths": [
       "database",
       "apex/f100.sql"
     ],
     "timeout_seconds": 1200
+  },
+  "prepare": {
+    "entrypoint": "deploy/hooks/prepare_image.py",
+    "requires_oci_credentials": true,
+    "timeout_seconds": 1200,
+    "release_assets": [
+      {
+        "name": "function-image.tar",
+        "max_bytes": 1073741824,
+        "download": true
+      }
+    ],
+    "output_variables": {
+      "function_image_ocid": "ocid",
+      "function_image_digest": "sha256"
+    }
   }
 }

@@ -10,19 +10,41 @@ from deploy.hooks import post_apply, preflight
 
 
 class DeploymentTests(unittest.TestCase):
-    def test_digest_mismatch_fails_before_reading_vault(self):
-        inputs = {
-            "function_image_ocid": "candidate", "function_image_digest": "expected",
-            "access_cidrs": "8.8.8.8/32", "admin_secret_ocid": "admin", "runtime_secret_ocid": "runtime"
-        }
-        sdk = Mock()
-        image = SimpleNamespace(digest="unexpected", lifecycle_state="AVAILABLE", version="v1")
-        sdk.artifacts.ArtifactsClient.return_value.get_container_image.return_value.data = image
-        with patch.dict(sys.modules, {"oci": sdk}), patch.object(preflight, "config_for", return_value={}), patch.object(
-                Path, "is_file", return_value=True), patch.object(Path, "stat", return_value=SimpleNamespace(st_size=10)):
-            with self.assertRaisesRegex(preflight.InputError, "digest"):
-                preflight.check_inputs({"region": "test", "inputs": inputs})
-        sdk.secrets.SecretsClient.assert_not_called()
+    def test_bucket_reuse_requires_readable_private_event_source(self):
+        client = Mock()
+        bucket = client.get_bucket.return_value.data
+        bucket.compartment_id = "target"
+        bucket.public_access_type = "NoPublicAccess"
+        bucket.storage_tier = "Standard"
+        bucket.is_read_only = False
+        bucket.object_events_enabled = True
+        context = {"compartment": "target", "compartment_mode": "existing",
+                   "inputs": {"bucket_mode": "existing", "existing_bucket_name": "uploads"}}
+        preflight.check_bucket(client, context)
+        for name, value in [("public_access_type", "ObjectRead"), ("object_events_enabled", False),
+                            ("is_read_only", True), ("storage_tier", "Archive"), ("compartment_id", "other")]:
+            with self.subTest(name=name), patch.object(bucket, name, value), self.assertRaises(preflight.InputError):
+                preflight.check_bucket(client, context)
+        client.update_bucket.assert_not_called()
+        context["inputs"] = {"bucket_mode": "new", "new_bucket_name": "uploads"}
+        with self.assertRaisesRegex(preflight.InputError, "already in use"):
+            preflight.check_bucket(client, context)
+
+    def test_deployment_form_supports_creation_and_reuse_by_name(self):
+        manifest = json.loads((Path(__file__).resolve().parents[1] / "terraform/deploy-studio.json").read_text())
+        fields = {field["name"]: field for field in manifest["form"]["fields"]}
+        for mode, create, existing, source in [
+            ("bucket_mode", "new_bucket_name", "existing_bucket_name", "oci_active_buckets"),
+            ("autonomous_database_mode", "autonomous_database_name", "existing_autonomous_database_id",
+             "oci_autonomous_oltp_databases"),
+        ]:
+            self.assertEqual(fields[mode]["default"], "new")
+            self.assertEqual(fields[create]["visible_when"], {"field": mode, "equals": "new"})
+            self.assertEqual(fields[existing]["visible_when"], {"field": mode, "equals": "existing"})
+            self.assertEqual(fields[existing]["options_source"], source)
+        self.assertTrue({"function_image_ocid", "function_image_digest", "admin_secret_ocid",
+                         "runtime_secret_ocid"}.isdisjoint(fields))
+        self.assertEqual(fields["access_cidrs"]["label"], "Allowed IP ranges")
 
     def test_oracle_statement_delimiters(self):
         script = "create table t (id number);\n/\nbegin\n null;\nend;\n/\n"
