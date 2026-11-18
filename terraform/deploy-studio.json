@@ -94,6 +94,24 @@
         ]
       },
       {
+        "id": "vault",
+        "title": "OCI Vault",
+        "items": [
+          {
+            "kind": "field",
+            "name": "vault_mode"
+          },
+          {
+            "kind": "field",
+            "name": "existing_vault_id"
+          },
+          {
+            "kind": "field",
+            "name": "existing_key_id"
+          }
+        ]
+      },
+      {
         "id": "database",
         "title": "Oracle AI Database",
         "items": [
@@ -142,6 +160,45 @@
       }
     ],
     "fields": [
+      {
+        "name": "vault_mode",
+        "label": "Vault mode",
+        "type": "select",
+        "required": true,
+        "default": "new",
+        "options": [
+          {
+            "value": "new",
+            "label": "Create new vault"
+          },
+          {
+            "value": "existing",
+            "label": "Use existing vault"
+          }
+        ]
+      },
+      {
+        "name": "existing_vault_id",
+        "label": "Existing vault",
+        "type": "select",
+        "required": true,
+        "options_source": "oci_active_vaults",
+        "visible_when": {
+          "field": "vault_mode",
+          "equals": "existing"
+        }
+      },
+      {
+        "name": "existing_key_id",
+        "label": "Encryption key",
+        "type": "select",
+        "required": true,
+        "options_source": "oci_vault_aes_keys",
+        "visible_when": {
+          "field": "vault_mode",
+          "equals": "existing"
+        }
+      },
       {
         "name": "bucket_mode",
         "label": "Bucket mode",
@@ -364,11 +421,13 @@
     ],
     "include_paths": [
       "database",
-      "apex/f100.sql"
+      "apex/f100.sql",
+      "source/invoice-catalog.json"
     ],
     "timeout_seconds": 1200
   },
   "prepare": {
+    "owned_container_repository": true,
     "entrypoint": "deploy/hooks/prepare_image.py",
     "requires_oci_credentials": true,
     "timeout_seconds": 1200,
@@ -383,5 +442,12 @@
       "function_image_ocid": "ocid",
       "function_image_digest": "sha256"
     }
+  },
+  "pre_destroy": {
+    "entrypoint": "deploy/hooks/uninstall.py",
+    "requires_oci_credentials": true,
+    "outputs": ["db_dsn", "event_rule_id", "function_id", "bucket_compartment_id"],
+    "when": {"field": "autonomous_database_mode", "equals": "existing"},
+    "password_field": "autonomous_database_admin_password"
   }
 }

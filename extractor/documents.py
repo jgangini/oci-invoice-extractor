@@ -104,7 +104,7 @@ def page_texts(data, ocr=None):
             yield number, "ocr", (ocr or recognize)(data, number - 1)
 
 
-def recognize(data, page_index):
+def recognize(data, page_index, capture=None):
     import pypdfium2 as pdfium
     from rapidocr_onnxruntime import RapidOCR
 
@@ -120,6 +120,8 @@ def recognize(data, page_index):
         bitmap = page.render(scale=scale)
         try:
             lines, _ = _ocr_engine(bitmap.to_pil().convert("RGB"))
+            if capture is not None:
+                capture(lines or [], bitmap.width, bitmap.height)
             return "\n".join(item[1] for item in lines or [])
         finally:
             bitmap.close()

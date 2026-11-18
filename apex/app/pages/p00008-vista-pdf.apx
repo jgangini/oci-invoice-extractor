@@ -1,0 +1,37 @@
+page 8 (
+    name: PDF preview
+    alias: VISTA-PDF
+    title: PDF preview
+    appearance {
+        pageTemplate: @/standard
+    }
+    security {
+        authorizationScheme: @review
+        pageAccessProtection: argumentsMustHaveChecksum
+    }
+    process archivo (
+        name: Session file
+        type: executeCode
+        source {
+            plsqlCode:
+```plsql
+declare b blob; begin
+  select f.blob_content into b from apex_collections c join apex_application_temp_files f on f.name=c.c002
+  where c.collection_name='INV_UI_TEST' and f.application_id=:APP_ID and c.seq_id=1;
+  owa_util.mime_header('application/pdf',false);
+  htp.p('Cache-Control: private, no-store');
+  htp.p('X-Content-Type-Options: nosniff');
+  htp.p('Content-Disposition: inline; filename="documento.pdf"');
+  htp.p('Content-Length: ' || dbms_lob.getlength(b));
+  owa_util.http_header_close; wpg_docload.download_file(b);
+  apex_application.stop_apex_engine;
+end;
+```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+    )
+
+)

@@ -50,7 +50,7 @@ class ExistingDatabaseTests(unittest.TestCase):
             with self.subTest(reserve=reserve):
                 admin = MagicMock()
                 cur = admin.cursor.return_value.__enter__.return_value
-                cur.fetchone.side_effect = [(1,), ("26.1.0",), (0,), None]
+                cur.fetchone.side_effect = [(1,), ("26.1.0",), (0,), None, (0,)]
                 cur.fetchall.side_effect = [[], []]
                 check_install_target(admin, "studio-1", reserve=reserve)
                 ddl = [call.args[0] for call in cur.execute.call_args_list if call.args[0].startswith("create")]
@@ -80,7 +80,7 @@ class ExistingDatabaseTests(unittest.TestCase):
             with self.subTest(owner=owner, apps=apps, mappings=mappings):
                 admin = MagicMock()
                 cur = admin.cursor.return_value.__enter__.return_value
-                cur.fetchone.side_effect = [(1,), ("26.1",), (3,), ("INVOICES",)]
+                cur.fetchone.side_effect = [(1,), ("26.1",), (5,), (3,), ("INVOICES",)]
                 cur.fetchall.side_effect = [[("TABLE",)], [(sha256(owner.encode()).hexdigest(),)], apps, mappings]
                 if valid:
                     check_install_target(admin, "studio-1", reserve=True)

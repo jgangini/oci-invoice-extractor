@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import Mock
 
 from deploy.export_image import add
-from deploy.hooks.prepare_image import layout, private_repository, publish
+from deploy.hooks.prepare_image import layout, private_repository, publish, repository_target
 
 
 def image_archive(architecture="amd64", corrupt=False, extra=None):
@@ -80,18 +80,33 @@ class PrepareImageTests(unittest.TestCase):
         api = Mock()
         api.list_container_repositories.return_value.data.items = []
         repo = SimpleNamespace(id="id", compartment_id="target", display_name="repo", is_public=False,
-                               is_immutable=False, lifecycle_state="AVAILABLE")
+                               is_immutable=False, lifecycle_state="AVAILABLE", freeform_tags={"ctn_owner":"ours"})
+        tags = dict(repo.freeform_tags)
         api.create_container_repository.return_value.data = repo
-        self.assertIs(private_repository(api, "target", "repo"), repo)
+        self.assertIs(private_repository(api, "target", "repo", tags), repo)
         details = api.create_container_repository.call_args.args[0]
         self.assertIsNone(details.is_immutable)
         self.assertFalse(details.is_public)
+        self.assertEqual(details.freeform_tags, tags)
         api.list_container_repositories.return_value.data.items = [SimpleNamespace(id="id")]
         api.get_container_repository.return_value.data = repo
-        self.assertIs(private_repository(api, "target", "repo"), repo)
+        self.assertIs(private_repository(api, "target", "repo", tags), repo)
+        with self.assertRaisesRegex(ValueError, "ownership"):
+            private_repository(api, "target", "repo", {"ctn_owner":"another deployment"})
         repo.is_public = True
         with self.assertRaisesRegex(ValueError, "private"):
-            private_repository(api, "target", "repo")
+            private_repository(api, "target", "repo", tags)
+
+    def test_repository_target_is_dedicated_to_job(self):
+        job = "dep_" + "a" * 16
+        name = "ctn-" + "a" * 16 + "-function"
+        tags = {"ctn_deployment_id":job, "ctn_owner":"c" * 32}
+        context = {"deployment_id":job, "owned_container_repository":{"name":name, "freeform_tags":tags}}
+        digest = "sha256:" + "d" * 64
+        self.assertEqual(repository_target(context, digest), (name, dict(tags, ctn_image_digest=digest)))
+        context["deployment_id"] = "dep_" + "b" * 16
+        with self.assertRaisesRegex(ValueError, "name"):
+            repository_target(context, digest)
 
 
 if __name__ == "__main__":

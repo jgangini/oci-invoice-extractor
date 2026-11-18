@@ -2,10 +2,52 @@
 
 from hashlib import sha256
 import re
+import secrets
 
 
 class DatabaseTargetError(ValueError):
     """Safe, actionable error for Studio's deployment log."""
+
+
+SCHEMAS = ("INV_DATA", "INV_APEX", "INV_FN")
+
+
+def installation_profile(cur):
+    cur.execute("""select profile_name, (select count(*) from dba_profiles p
+                   where p.profile=i.profile_name) from admin.inv_extractor_install i""")
+    profile, entries = cur.fetchone()
+    if not isinstance(profile, str) or not re.fullmatch(r"INV_P_[0-9A-F]{32}", profile):
+        raise DatabaseTargetError("Invalid installation profile in the database ownership record.")
+    cur.execute("""select username from dba_users where profile=:profile
+                   and username not in ('INV_DATA','INV_APEX','INV_FN')""", profile=profile)
+    if cur.fetchone():
+        raise DatabaseTargetError("The installation profile is assigned to an unrelated database user.")
+    return profile, bool(entries)
+
+
+def schema_identity(cur, name, profile):
+    if name not in SCHEMAS:
+        raise DatabaseTargetError("Unknown installation schema.")
+    cur.execute(f"""select i.{name}_id, u.user_id, u.profile from admin.inv_extractor_install i
+                    left join dba_users u on u.username=:name""", name=name)
+    recorded, actual, assigned = cur.fetchone()
+    if actual is not None and (assigned != profile or recorded not in (None, actual)):
+        raise DatabaseTargetError("Database user ownership differs from the installation record.")
+    return recorded, actual
+
+
+def _reserve_claim(cur, owner):
+    profile = "INV_P_" + secrets.token_hex(16).upper()
+    workspace_id = 10**15 + secrets.randbelow(9 * 10**15)
+    cur.execute("""select (select count(*) from dba_profiles where profile=:profile)
+                   + (select count(*) from apex_workspaces where workspace_id=:ws_id) from dual""",
+                profile=profile, ws_id=workspace_id)
+    if cur.fetchone()[0]:
+        raise DatabaseTargetError("Generated installation identifiers already exist. Retry the reservation.")
+    # DDL cannot bind values. All literals are generated locally (hex digests and an integer).
+    cur.execute(f"""create table admin.inv_extractor_install as select '{owner}' deployment_hash,
+        '{profile}' profile_name, {workspace_id} workspace_id, cast(null as number) inv_data_id,
+        cast(null as number) inv_apex_id, cast(null as number) inv_fn_id from dual""")
 
 
 def existing_dsn(database, compartment_id=None):
@@ -62,6 +104,10 @@ def _has_installation_claim(cur, owner):
     cur.execute("select deployment_hash from admin.inv_extractor_install")
     if cur.fetchall() != [(owner,)]:
         raise DatabaseTargetError("This database is already reserved by another deployment.")
+    cur.execute("""select count(*) from user_tab_columns where table_name='INV_EXTRACTOR_INSTALL'
+                   and column_name in ('PROFILE_NAME','WORKSPACE_ID','INV_DATA_ID','INV_APEX_ID','INV_FN_ID')""")
+    if cur.fetchone()[0] != 5:
+        raise DatabaseTargetError("Legacy installation record has no account ownership evidence. Use its original installer.")
     return True
 
 
@@ -89,5 +135,4 @@ def check_install_target(admin, deployment_id, *, reserve=False):
         if apps and apps != [(100, "INVOICES", "INV_APEX", "INVOICE-EXTRACTOR")]:
             raise DatabaseTargetError("The selected application ID or alias belongs to a different installation.")
         if reserve and not marker:
-            # CTAS claims the namespace atomically. Only a fixed-length hexadecimal digest enters DDL.
-            cur.execute(f"create table admin.inv_extractor_install as select '{owner}' deployment_hash from dual")
+            _reserve_claim(cur, owner)

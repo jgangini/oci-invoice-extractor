@@ -28,7 +28,8 @@
           "inv_batch",
           "inv_document",
           "inv_run",
-          "inv_result"
+          "inv_result",
+          "inv_doc_checkpoint"
         ],
         "note": "Cada generación procesa los miembros PDF del lote y conserva los valores obtenidos."
       },
@@ -42,6 +43,16 @@
           "inv_review"
         ],
         "note": "La revisión registra el valor aprobado y el motivo. La extracción original permanece disponible."
+      },
+      {
+        "id": "prueba",
+        "label": "Prueba y evidencia",
+        "focus": [
+          "inv_pdf_test",
+          "inv_test_page",
+          "inv_template"
+        ],
+        "note": "Cada prueba usa una versión de plantilla. Las miniaturas y líneas OCR permiten ubicar los campos en la página revisada."
       }
     ]
   },
@@ -57,7 +68,7 @@
       "label": "INV_OPERATOR",
       "tag": "Acceso",
       "row": 0,
-      "col": 3,
+      "col": 4,
       "attributes": [
         {
           "name": "username",
@@ -75,7 +86,7 @@
       "label": "INV_SETTINGS",
       "tag": "Acceso",
       "row": 1,
-      "col": 3,
+      "col": 4,
       "attributes": [
         {
           "name": "id",
@@ -89,6 +100,10 @@
         {
           "name": "source_prefix",
           "type": "VARCHAR2(512)"
+        },
+        {
+          "name": "object_base_url",
+          "type": "VARCHAR2(2048)"
         }
       ]
     },
@@ -471,6 +486,122 @@
           "type": "TIMESTAMP WITH TIME ZONE"
         }
       ]
+    },
+    {
+      "id": "inv_doc_checkpoint",
+      "label": "INV_DOC_CHECKPOINT",
+      "tag": "Lotes",
+      "row": 0,
+      "col": 3,
+      "attributes": [
+        {
+          "name": "document_id",
+          "type": "NUMBER",
+          "key": "fk",
+          "references": "inv_document.document_id"
+        },
+        {
+          "name": "generation",
+          "type": "NUMBER",
+          "key": "pk"
+        },
+        {
+          "name": "started_at",
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "name": "finished_at",
+          "type": "TIMESTAMP WITH TIME ZONE"
+        }
+      ]
+    },
+    {
+      "id": "inv_pdf_test",
+      "label": "INV_PDF_TEST",
+      "tag": "Prueba PDF",
+      "row": 2,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "test_id",
+          "type": "VARCHAR2(32)",
+          "key": "pk"
+        },
+        {
+          "name": "version_id",
+          "type": "NUMBER",
+          "key": "fk",
+          "references": "inv_template.version_id"
+        },
+        {
+          "name": "actor",
+          "type": "VARCHAR2(255)"
+        },
+        {
+          "name": "filename",
+          "type": "VARCHAR2(255 CHAR)"
+        },
+        {
+          "name": "state",
+          "type": "VARCHAR2(10)"
+        },
+        {
+          "name": "stage",
+          "type": "VARCHAR2(20)"
+        },
+        {
+          "name": "file_data",
+          "type": "BLOB"
+        },
+        {
+          "name": "result_json",
+          "type": "CLOB"
+        }
+      ]
+    },
+    {
+      "id": "inv_test_page",
+      "label": "INV_TEST_PAGE",
+      "tag": "Evidencia",
+      "row": 3,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "test_id",
+          "type": "VARCHAR2(32)",
+          "key": "fk",
+          "references": "inv_pdf_test.test_id"
+        },
+        {
+          "name": "page_no",
+          "type": "NUMBER",
+          "key": "pk"
+        },
+        {
+          "name": "picture",
+          "type": "BLOB"
+        },
+        {
+          "name": "width_px",
+          "type": "NUMBER"
+        },
+        {
+          "name": "height_px",
+          "type": "NUMBER"
+        },
+        {
+          "name": "ocr_total",
+          "type": "NUMBER"
+        },
+        {
+          "name": "ocr_shown",
+          "type": "NUMBER"
+        },
+        {
+          "name": "ocr_lines",
+          "type": "CLOB"
+        }
+      ]
     }
   ],
   "relationships": [
@@ -563,6 +694,33 @@
       "fromOptional": true,
       "toCardinality": "one",
       "identifying": false
+    },
+    {
+      "id": "checkpoint_document",
+      "from": "inv_doc_checkpoint",
+      "to": "inv_document",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": true
+    },
+    {
+      "id": "test_template",
+      "from": "inv_pdf_test",
+      "to": "inv_template",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": false
+    },
+    {
+      "id": "page_test",
+      "from": "inv_test_page",
+      "to": "inv_pdf_test",
+      "fromCardinality": "many",
+      "fromOptional": true,
+      "toCardinality": "one",
+      "identifying": true
     }
   ],
   "cards": [
@@ -588,6 +746,14 @@
       "items": [
         "INV_V_RESULTS recupera el resultado más reciente por documento y campo y la última aprobación humana. Una diferencia entre ambos se presenta para revisión.",
         "Fuentes del checkout local: database/schema.sql define las tablas e índices. En database/api.sql se encuentran los paquetes INV_UI e INV_INGEST y la vista INV_V_RESULTS."
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Prueba individual y seguimiento",
+      "items": [
+        "INV_TEST_PAGE reúne la miniatura de la página y sus fragmentos OCR. El campo result_json de INV_PDF_TEST contiene los resultados y sus posiciones verificadas.",
+        "INV_DOC_CHECKPOINT registra inicio y fin por documento y generación. El monitor calcula el tiempo restante a partir del trabajo terminado."
       ]
     }
   ]

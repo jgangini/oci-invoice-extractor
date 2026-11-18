@@ -5,7 +5,7 @@ authorization admin (
         plsqlFunctionBody: return inv_data.inv_ui.permitted('ADMIN')=1;
     }
     error {
-        errorMessage: Acceso denegado.
+        errorMessage: Access denied.
     }
 )
 authorization review (
@@ -15,6 +15,6 @@ authorization review (
         plsqlFunctionBody: return inv_data.inv_ui.permitted('REVIEW')=1;
     }
     error {
-        errorMessage: Acceso denegado.
+        errorMessage: Access denied.
     }
 )

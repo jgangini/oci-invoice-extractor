@@ -1,23 +1,51 @@
 """Bound the wall time of one document, including native PDF and ONNX calls."""
 import multiprocessing
+import logging
+import time
 
-from .documents import InputError, page_texts
+from .documents import InputError, page_texts, recognize
 from .fields import extract
+from .geometry import ocr_lines, preview_pages
 
 
 class DocumentError(Exception):
     """A permanent document error, safe to record without its contents."""
 
 
+def _preview(data, template, channel):
+    contacted_ocr = False
+    geometry = {}
+
+    def ocr(content, index):
+        nonlocal contacted_ocr
+        if not contacted_ocr:
+            channel.send(("stage", "OCR"))
+            contacted_ocr = True
+        def capture(lines, width, height):
+            geometry[index + 1] = ocr_lines(lines, width, height)
+        return recognize(content, index, capture=capture)
+
+    def pages():
+        yield from page_texts(data, ocr=ocr)
+        channel.send(("stage", "EXTRACT_FIELDS"))
+
+    fields = extract(pages(), template)
+    channel.send(("stage", "LOCATE_EVIDENCE"))
+    return fields, preview_pages(data, fields, geometry)
+
+
 def _serve(channel):
+    # Parser diagnostics can quote bytes from uploaded documents.
+    logging.getLogger("pypdf").setLevel(logging.CRITICAL + 1)
     try:
         while True:
             request = channel.recv()
             if request is None:
                 return
-            data, template = request
+            data, template, track = request
             try:
-                channel.send((True, extract(page_texts(data), template)))
+                result = _preview(data, template, channel) if track else extract(page_texts(data), template)
+                channel.send((True, result))
             except InputError as exc:
                 channel.send((False, str(exc)))
             except Exception as exc:
@@ -34,7 +62,7 @@ class DocumentWorker:
         self.process = None
         self.channel = None
 
-    def extract(self, data, template):
+    def extract(self, data, template, on_stage=None):
         if self.process is None:
             context = multiprocessing.get_context("spawn")
             self.channel, child = context.Pipe()
@@ -42,10 +70,15 @@ class DocumentWorker:
             self.process.start()
             child.close()
         try:
-            self.channel.send((data, template))
-            if not self.channel.poll(self.seconds):
+            self.channel.send((data, template, on_stage is not None))
+            deadline = time.monotonic() + self.seconds
+            while self.channel.poll(max(0, deadline - time.monotonic())):
+                ok, result = self.channel.recv()
+                if ok != "stage":
+                    break
+                on_stage(result)
+            else:
                 raise DocumentError("document_timeout")
-            ok, result = self.channel.recv()
         except (EOFError, OSError) as exc:
             self.close()
             raise DocumentError("document_worker_exit") from exc

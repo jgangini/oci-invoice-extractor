@@ -38,7 +38,7 @@ list navigation-bar (
     )
 
     entry sign-out (
-        label: Cerrar sesión
+        label: Sign out
         icon {
             imageIconCssClasses: fa-sign-out
         }
@@ -63,7 +63,7 @@ list navigation-menu (
     name: Navigation Menu
 
     entry home (
-        label: Lotes
+        label: Batches
         icon {
             imageIconCssClasses: fa-home
         }
@@ -77,8 +77,44 @@ list navigation-menu (
         }
     )
 
+    entry probar-pdf (
+        label: Test a PDF
+        icon {
+            imageIconCssClasses: fa-file-pdf-o
+        }
+        layout {
+            sequence: 20
+        }
+        link {
+            target: {
+                page: 6
+            }
+        }
+        security {
+            authorizationScheme: @review
+        }
+    )
+
+    entry cargar-zip (
+        label: Upload a ZIP batch
+        icon {
+            imageIconCssClasses: fa-upload
+        }
+        layout {
+            sequence: 30
+        }
+        link {
+            target: {
+                page: 7
+            }
+        }
+        security {
+            authorizationScheme: @review
+        }
+    )
+
     entry plantillas (
-        label: Plantillas
+        label: Templates
         layout {
             sequence: 40
         }
@@ -93,7 +129,7 @@ list navigation-menu (
     )
 
     entry rutas (
-        label: Rutas
+        label: Routes
         layout {
             sequence: 50
         }

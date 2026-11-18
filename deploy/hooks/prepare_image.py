@@ -19,7 +19,7 @@ DIGEST = re.compile(r"sha256:([0-9a-f]{64})")
 IMAGE_TYPES = {"application/vnd.oci.image.manifest.v1+json", "application/vnd.docker.distribution.manifest.v2+json"}
 
 
-def find_or_create_repository(artifacts, compartment, name, create):
+def find_or_create_repository(artifacts, compartment, name, tags, create):
     matches = artifacts.list_container_repositories(compartment, display_name=name).data.items
     if matches:
         if len(matches) != 1:
@@ -27,7 +27,7 @@ def find_or_create_repository(artifacts, compartment, name, create):
         return artifacts.get_container_repository(matches[0].id).data
     if create:
         details = oci.artifacts.models.CreateContainerRepositoryDetails(
-            compartment_id=compartment, display_name=name, is_public=False)
+            compartment_id=compartment, display_name=name, is_public=False, freeform_tags=tags)
         try:
             return artifacts.create_container_repository(details).data
         except oci.exceptions.ServiceError as exc:
@@ -36,12 +36,14 @@ def find_or_create_repository(artifacts, compartment, name, create):
     return None
 
 
-def private_repository(artifacts, compartment, name):
+def private_repository(artifacts, compartment, name, tags):
     for attempt in range(12):
-        repository = find_or_create_repository(artifacts, compartment, name, create=attempt == 0)
+        repository = find_or_create_repository(artifacts, compartment, name, tags, create=attempt == 0)
         if repository is not None:
             if (repository.display_name, repository.compartment_id) != (name, compartment) or repository.is_public is not False:
                 raise ValueError("Expected a private repository in the selected compartment")
+            if not all((repository.freeform_tags or {}).get(k) == v for k, v in tags.items()):
+                raise ValueError("Repository ownership or pinned image digest does not match the deployment")
             if repository.lifecycle_state == "AVAILABLE":
                 return repository
         if attempt < 11:
@@ -150,12 +152,22 @@ def publish(session, base, archive, parsed, tag):
         raise ValueError("Registry failed to verify the published manifest")
 
 
+def repository_target(context, digest):
+    job = context["deployment_id"]
+    target = context["owned_container_repository"]
+    name, tags = target["name"], target["freeform_tags"]
+    if not re.fullmatch(r"dep_[a-f0-9]{16}", job) or name != f"ctn-{job[4:]}-function":
+        raise ValueError("Invalid deployment repository name")
+    if tags.get("ctn_deployment_id") != job or not re.fullmatch(r"[a-f0-9]{32}", tags.get("ctn_owner", "")):
+        raise ValueError("Invalid deployment ownership tags")
+    return name, {**tags, "ctn_image_digest": digest}
+
+
 def prepare(context):
     import httpx
     cfg = config_for(context["region"])
     compartment, namespace = context["compartment_id"], context["namespace"]
     project = "oci-invoice-extractor"
-    repo = project + "-" + hashlib.sha256(compartment.encode()).hexdigest()[:16]
     tag = context["commit_sha"]
     if not re.fullmatch("[a-f0-9]{40}", tag) or context["project_id"] != project:
         raise ValueError("Invalid pinned source")
@@ -163,7 +175,8 @@ def prepare(context):
     with tarfile.open(asset["path"], mode="r:") as archive:
         parsed = layout(archive)
         artifacts = oci.artifacts.ArtifactsClient(cfg)
-        repository = private_repository(artifacts, compartment, repo)
+        repo, tags = repository_target(context, parsed[0]["digest"])
+        repository = private_repository(artifacts, compartment, repo, tags)
         host = f"ocir.{cfg['region']}.oci.oraclecloud.com"
         scope = f"repository:{namespace}/{repo}:pull,push"
         token = oci.container_registry.ContainerRegistryClient(cfg).get_access_token(service=host, scope=scope).data.token

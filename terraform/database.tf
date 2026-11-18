@@ -2,30 +2,13 @@ locals {
   create_database = var.autonomous_database_mode == "new"
 }
 
-resource "oci_kms_vault" "database" {
-  compartment_id = var.compartment_ocid
-  display_name   = "${local.name}-db"
-  vault_type     = "DEFAULT"
-}
-
-resource "oci_kms_key" "database" {
-  compartment_id      = var.compartment_ocid
-  display_name        = "${local.name}-db-secrets"
-  management_endpoint = oci_kms_vault.database.management_endpoint
-  protection_mode     = "SOFTWARE"
-  key_shape {
-    algorithm = "AES"
-    length    = 32
-  }
-}
-
 # Vault generates the passwords. Terraform only handles references and metadata.
 resource "oci_vault_secret" "database" {
   for_each               = local.create_database ? toset(["runtime", "admin"]) : toset(["runtime"])
   compartment_id         = var.compartment_ocid
-  vault_id               = oci_kms_vault.database.id
-  key_id                 = oci_kms_key.database.id
-  secret_name            = "${local.name}-${each.key}"
+  vault_id               = local.vault_id
+  key_id                 = local.vault_key_id
+  secret_name            = "${local.secret_prefix}-${each.key}"
   enable_auto_generation = true
   secret_generation_context {
     generation_type     = "PASSPHRASE"

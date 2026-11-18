@@ -9,10 +9,11 @@ import oracledb
 from pypdf.errors import PyPdfError
 
 from .documents import InputError, MAX_ZIP, pdf_members, read_archive
+from .preview import preview
 from .worker import DocumentError, DocumentWorker
 
 LOG = logging.getLogger(__name__)
-ENGINE = "0.1.0"
+ENGINE = "0.2.0"
 
 
 def source_event(event, config):
@@ -69,6 +70,15 @@ class Store:
             self.call("save_fields", run.getvalue(), payload)
         self.connection.commit()
 
+    def index(self, batch, gen, members):
+        names = self.cursor.var(oracledb.DB_TYPE_CLOB)
+        names.setvalue(0, json.dumps([entry.filename for entry in members], ensure_ascii=False))
+        completed = self.cursor.var(oracledb.DB_TYPE_CLOB)
+        self.call("index_members", batch, gen, names, completed)
+        self.connection.commit()
+        result = completed.getvalue()
+        return set(json.loads(result.read())) if result else set()
+
     def finish(self, batch, gen, count, code=None):
         self.call("finish_batch", batch, gen, count, code)
         self.connection.commit()
@@ -116,15 +126,18 @@ def process(event, config, store, storage, enqueue, budget=200, dispatch=False):
         response.data.close()
     deadline = time.monotonic() + budget
     try:
-        archive = read_archive(data)
-        with archive:
+        with read_archive(data) as archive:
             members = list(pdf_members(archive))
-            for entry in members:
+            if not members:
+                raise InputError("no_pdf_members")
+            completed = store.index(batch, gen, members)
+            remaining = [entry for entry in members if entry.filename not in completed]
+            for index, entry in enumerate(remaining, 1):
                 store.member(batch, gen, archive, entry, template)
-                if time.monotonic() >= deadline:
+                if index < len(remaining) and time.monotonic() >= deadline:
                     enqueue(batch, gen)
                     return {"status": "continued", "batch_id": batch}
-    except (ValueError, zipfile.BadZipFile) as exc:
+    except (InputError, zipfile.BadZipFile) as exc:
         store.finish(batch, gen, 0, str(exc) if isinstance(exc, InputError) else type(exc).__name__)
         return {"status": "invalid", "batch_id": batch}
     store.finish(batch, gen, len(members))
@@ -134,7 +147,7 @@ def process(event, config, store, storage, enqueue, budget=200, dispatch=False):
 def invoke(event, function_id):
     import base64
     config = os.environ
-    if "batch_id" not in event and source_event(event, config) is None:
+    if "batch_id" not in event and "preview_id" not in event and source_event(event, config) is None:
         return {"status": "ignored"}
     signer = oci.auth.signers.get_resource_principals_signer()
     storage = oci.object_storage.ObjectStorageClient({}, signer=signer)
@@ -151,6 +164,8 @@ def invoke(event, function_id):
                           dsn=config["DB_DSN"]) as conn:
         store = Store(conn)
         try:
+            if set(event) == {"preview_id"}:
+                return preview(conn, store.worker, event["preview_id"])
             return process(event, config, store, storage, enqueue, dispatch=True)
         finally:
             store.worker.close()

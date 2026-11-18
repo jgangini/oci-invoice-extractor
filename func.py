@@ -15,7 +15,7 @@ def handler(ctx, data=None):
         return response.Response(ctx, status_code=400, response_data="Invalid event")
     try:
         result = invoke(event, ctx.FnID())
-        logging.info("event=%s call=%s batch=%s status=%s", event.get("eventID"), ctx.CallID(),
+        logging.info("call=%s batch=%s status=%s", ctx.CallID(),
                      result.get("batch_id"), result["status"])
     except Exception as exc:
         logging.error("call=%s problem=%s", ctx.CallID(), type(exc).__name__)

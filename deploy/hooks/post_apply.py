@@ -5,8 +5,9 @@ import json
 import os
 from pathlib import Path
 import re
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 
+from deploy.hooks.database_target import DatabaseTargetError, SCHEMAS, installation_profile, schema_identity
 from deploy.hooks.preflight import ROOT, config_for, context_file, password_valid, read_password
 
 
@@ -26,9 +27,9 @@ def units(script):
             yield sql
 
 
-def execute_script(cursor, name):
+def execute_script(cursor, name, **binds):
     for sql in units((ROOT / "database" / f"{name}.sql").read_text(encoding="utf-8-sig")):
-        cursor.execute(sql)
+        cursor.execute(sql, binds)
 
 
 def scalar(cursor, sql, **values):
@@ -36,20 +37,38 @@ def scalar(cursor, sql, **values):
     return cursor.fetchone()[0]
 
 
+def prepare_account(cur, name, profile, runtime_password):
+    recorded, actual = schema_identity(cur, name, profile)
+    if actual is None:
+        if recorded is not None:
+            raise DatabaseTargetError("A recorded installation account was removed.")
+        if name == "INV_FN":
+            cur.execute(f"""begin execute immediate 'create user INV_FN identified by ' ||
+                dbms_assert.enquote_name(:pw, false) || ' profile {profile}'; end;""",
+                pw='"' + runtime_password + '"')
+        else:
+            cur.execute(f"create user {name} no authentication profile {profile}")
+        _, actual = schema_identity(cur, name, profile)
+    if recorded is None:
+        # The profile identifies a CREATE USER whose reply or following commit was lost.
+        cur.execute(f"""update admin.inv_extractor_install set {name}_id=:user_id
+            where {name}_id is null and exists (select 1 from dba_users
+            where username=:name and user_id=:user_id and profile=:profile)""",
+            user_id=actual, name=name, profile=profile)
+        if cur.rowcount != 1:
+            raise DatabaseTargetError("Could not verify the newly created database account.")
+    cur.execute(f"grant create session to {name}")
+
+
 def prepare_users(admin, runtime_password):
     if not password_valid(runtime_password, "INV_FN"):
         raise ValueError("Invalid runtime password")
     with admin.cursor() as cur:
-        for name in ("INV_DATA", "INV_APEX", "INV_FN"):
-            exists = scalar(cur, "select count(*) from dba_users where username=:name", name=name)
-            if not exists:
-                if name == "INV_FN":
-                    # Oracle DDL does not accept binds. DBMS_ASSERT quotes the validated secret inside PL/SQL.
-                    cur.execute("""begin execute immediate 'create user INV_FN identified by ' ||
-                        dbms_assert.enquote_name(:pw, false); end;""", pw='"' + runtime_password + '"')
-                else:
-                    cur.execute(f"create user {name} no authentication")
-            cur.execute(f"grant create session to {name}")
+        profile, exists = installation_profile(cur)
+        if not exists:
+            cur.execute(f"create profile {profile} limit failed_login_attempts default")
+        for name in SCHEMAS:
+            prepare_account(cur, name, profile, runtime_password)
         cur.execute("alter user INV_DATA quota unlimited on DATA")
         cur.execute("grant create table, create view, create procedure, create sequence to INV_DATA")
         cur.execute("grant execute on DBMS_CLOUD to INV_DATA")
@@ -71,10 +90,13 @@ def schema_session(admin, schema, password, dsn):
             cursor.execute(f"alter user {schema} revoke connect through ADMIN")
 
 
-def enable_retry(admin, invoke_url, *, existing_database=False):
+def enable_retry(admin, invoke_url, object_base_url, *, existing_database=False):
     host = urlsplit(invoke_url)
     if host.scheme != "https" or not (host.hostname or "").endswith(".functions.oci.oraclecloud.com"):
         raise ValueError("Unsupported Functions endpoint")
+    storage = urlsplit(object_base_url)
+    if storage.scheme != "https" or not re.fullmatch(r"objectstorage\.[a-z0-9-]+\.(?:oci\.)?oraclecloud\.com", storage.netloc):
+        raise ValueError("Unsupported Object Storage endpoint")
     with admin.cursor() as cur:
         if not scalar(cur, "select count(*) from dba_credentials where owner='ADMIN' and credential_name='OCI$RESOURCE_PRINCIPAL'"):
             if existing_database:
@@ -83,21 +105,26 @@ def enable_retry(admin, invoke_url, *, existing_database=False):
         if not scalar(cur, """select count(*) from all_tab_privs where grantee='INV_DATA'
                 and table_schema='ADMIN' and table_name='OCI$RESOURCE_PRINCIPAL'"""):
             cur.execute("begin dbms_cloud_admin.enable_resource_principal(username=>'INV_DATA'); end;")
-        cur.execute("""begin dbms_network_acl_admin.append_host_ace(host=>:host,
-            lower_port=>443, upper_port=>443, ace=>xs$ace_type(privilege_list=>xs$name_list('http'),
-            principal_name=>'INV_DATA',principal_type=>xs_acl.ptype_db)); end;""", host=host.hostname)
+        for hostname in (host.hostname, storage.hostname):
+            cur.execute("""begin dbms_network_acl_admin.append_host_ace(host=>:host,
+                lower_port=>443, upper_port=>443, ace=>xs$ace_type(privilege_list=>xs$name_list('http'),
+                principal_name=>'INV_DATA',principal_type=>xs_acl.ptype_db)); end;""", host=hostname)
 
 
-def install_data(session, outputs, operator):
+def install_data(session, outputs, operator, object_base_url, catalog):
+    import oracledb
+
     with session.cursor() as cur:
-        for name in ("schema", "api", "grants"):
+        for name in ("schema", "api", "uploads", "grants"):
             execute_script(cur, name)
         cur.execute("""merge into inv_settings t using
-            (select 1 id,:url invoke_url,:prefix source_prefix from dual) s on (t.id=s.id)
-            when matched then update set t.invoke_url=s.invoke_url,t.source_prefix=s.source_prefix
-            when not matched then insert(id,invoke_url,source_prefix) values(s.id,s.invoke_url,s.source_prefix)""",
-            url=outputs["function_invoke_url"], prefix=outputs["source_prefix"])
-        execute_script(cur, "seed")
+            (select 1 id,:url invoke_url,:prefix source_prefix,:base object_base_url from dual) s on (t.id=s.id)
+            when matched then update set t.invoke_url=s.invoke_url,t.source_prefix=s.source_prefix,t.object_base_url=s.object_base_url
+            when not matched then insert(id,invoke_url,source_prefix,object_base_url)
+            values(s.id,s.invoke_url,s.source_prefix,s.object_base_url)""",
+            url=outputs["function_invoke_url"], prefix=outputs["source_prefix"], base=object_base_url)
+        cur.setinputsizes(catalog=oracledb.DB_TYPE_CLOB)
+        execute_script(cur, "seed", catalog=catalog)
         cur.execute("""merge into inv_operator t using (select :name username from dual) s on (t.username=s.username)
             when not matched then insert(username,permission) values(s.username,'ADMIN')""", name=operator)
         if scalar(cur, "select count(*) from user_objects where status='INVALID'"):
@@ -108,8 +135,13 @@ def install_data(session, outputs, operator):
 def create_workspace(admin, operator, password):
     with admin.cursor() as cur:
         if not scalar(cur, "select count(*) from apex_workspaces where workspace=:ws", ws=WORKSPACE):
-            cur.execute("""begin apex_instance_admin.add_workspace(p_workspace=>:ws,
-                p_primary_schema=>'INV_APEX', p_additional_schemas=>null); end;""", ws=WORKSPACE)
+            workspace_id = scalar(cur, "select workspace_id from admin.inv_extractor_install")
+            cur.execute("""begin apex_instance_admin.add_workspace(p_workspace_id=>:ws_id,p_workspace=>:ws,
+                p_primary_schema=>'INV_APEX', p_additional_schemas=>null); end;""",
+                ws_id=workspace_id, ws=WORKSPACE)
+        if not scalar(cur, """select count(*) from admin.inv_extractor_install i join apex_workspaces w
+                            on w.workspace_id=i.workspace_id where w.workspace=:ws""", ws=WORKSPACE):
+            raise ValueError("The APEX workspace identity differs from the installation record.")
         cur.execute("begin apex_util.set_workspace(p_workspace=>:ws); end;", ws=WORKSPACE)
         if scalar(cur, "select apex_util.get_user_id(:name) from dual", name=operator) is None:
             cur.execute("""begin apex_util.create_user(p_user_name=>:name,p_web_password=>:pw,
@@ -156,6 +188,24 @@ def application_url(base):
     return urlunsplit((parts.scheme, parts.netloc, parts.path.split("/ords", 1)[0] + "/ords/f", "p=100:1", ""))
 
 
+def put_initial_catalog(storage, outputs, catalog):
+    import oci
+
+    key = (outputs["object_namespace"], outputs["bucket_name"], outputs["source_prefix"] + "invoice-catalog.json")
+    payload = catalog.encode("utf-8")
+    try:
+        storage.put_object(*key, payload, content_type="application/json", if_none_match="*")
+    except oci.exceptions.ServiceError as exc:
+        if exc.status != 412:
+            raise
+        existing = storage.get_object(*key, range=f"bytes=0-{len(payload)}")
+        try:
+            if existing.data.content != payload:
+                raise ValueError("The initial catalog object already has different content.")
+        finally:
+            existing.data.close()
+
+
 def install(stages):
     import oci
     import oracledb
@@ -171,6 +221,12 @@ def install(stages):
     operator_password = secret_inputs["apex_operator_password"]
     secrets = oci.secrets.SecretsClient(cfg)
     events = oci.events.EventsClient(cfg)
+    storage = oci.object_storage.ObjectStorageClient(cfg)
+    endpoint = storage.base_client.endpoint.rstrip("/")
+    namespace = quote(outputs["object_namespace"], safe="")
+    bucket = quote(outputs["bucket_name"], safe="")
+    object_base_url = f"{endpoint}/n/{namespace}/b/{bucket}/o/"
+    catalog = (ROOT / "source/invoice-catalog.json").read_text(encoding="utf-8")
     stages.append("target and Vault verification")
     delivery(events, outputs, outputs["bucket_compartment_id"], False)
     admin_password = secret_inputs["autonomous_database_admin_password"]
@@ -183,10 +239,10 @@ def install(stages):
         check_install_target(admin, context["deployment_id"], reserve=True)
         prepare_users(admin, runtime_password)
         stages.append("resource principal and HTTPS access setup")
-        enable_retry(admin, outputs["function_invoke_url"], existing_database=inputs["autonomous_database_mode"] == "existing")
+        enable_retry(admin, outputs["function_invoke_url"], object_base_url, existing_database=inputs["autonomous_database_mode"] == "existing")
         stages.append("data model and template installation")
         with schema_session(admin, "INV_DATA", admin_password, dsn) as owner:
-            install_data(owner, outputs, operator)
+            install_data(owner, outputs, operator, object_base_url, catalog)
         stages.append("APEX workspace and user setup")
         create_workspace(admin, operator, operator_password)
         stages.append("APEX application import")
@@ -196,11 +252,16 @@ def install(stages):
     with oracledb.connect(user="INV_FN", password=runtime_password, dsn=dsn, ssl_server_dn_match=True) as runtime:
         runtime.ping()
     url = application_url(outputs["apex_base_url"])
+    if inputs["bucket_mode"] == "new":
+        stages.append("initial catalog upload")
+        put_initial_catalog(storage, outputs, catalog)
+    stages.append("event activation")
     delivery(events, outputs, outputs["bucket_compartment_id"], True)
     return {"application_url": url}
 
 
 def main():
+    import oci
     stages = ["installation contract"]
     try:
         outputs = install(stages)
@@ -210,6 +271,10 @@ def main():
         # Only known error codes are useful here. Driver messages can include SQL or credentials.
         match = re.search(r"\b(?:ORA|DPY|PLS)-\d{4,5}\b", str(exc))
         error = f" ({match.group()})" if match else ""
+        if isinstance(exc, oci.exceptions.ServiceError):
+            error = f" (OCI HTTP {exc.status})"
+            if exc.code in {"Conflict", "IncorrectState", "NotAuthorizedOrNotFound", "InvalidParameter", "LimitExceeded", "TooManyRequests"}:
+                error = f" (OCI HTTP {exc.status} {exc.code})"
         result = {"events": [{"level": "error", "message": f"Installation failed during {stages[-1]}{error}."}]}
         code = 1
     Path(os.environ["DEPLOY_STUDIO_OUTPUT"]).write_text(json.dumps(result), encoding="utf-8")

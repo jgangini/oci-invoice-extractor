@@ -1,7 +1,7 @@
 page 4 (
-    name: Plantillas
+    name: Templates
     alias: PLANTILLAS
-    title: Plantillas
+    title: Templates
     appearance {
         pageTemplate: @/standard
     }
@@ -9,9 +9,31 @@ page 4 (
         authorizationScheme: @admin
         pageAccessProtection: argumentsMustHaveChecksum
     }
-    region archivo (
-        name: Nueva versión
+    javaScript {
+        fileUrls: #APP_FILES#invoice-editor.js
+        executeWhenPageLoads: InvoiceEditor.start();
+    }
+    region editor (
+        name: Template editor
         type: staticContent
+        source {
+            htmlCode:
+```html
+<div id="invoice-editor" class="inv-console">
+  <div class="inv-toolbar">
+    <label>Saved version<select id="inv-version"><option value="">Select a version</option></select></label>
+    <button type="button" id="inv-load">Open version</button>
+    <button type="button" id="inv-import">Import JSON</button>
+    <input id="inv-json-file" type="file" accept=".json,application/json" hidden>
+  </div>
+  <div class="inv-pair"><label>Template name<input id="inv-name" maxlength="100" required></label><label>Version<input id="inv-number" type="number" min="1" step="1" required></label></div>
+  <div class="inv-toolbar"><h2>Fields</h2><button type="button" id="inv-add">Add field</button></div>
+  <div id="inv-fields"></div>
+  <div class="inv-toolbar"><button type="button" id="inv-save" class="inv-primary">Publish version</button><button type="button" id="inv-download">Download JSON</button></div>
+  <p id="inv-message" role="status"></p>
+</div>
+```
+        }
         layout {
             sequence: 10
             slot: body
@@ -20,254 +42,64 @@ page 4 (
             template: @/standard
         }
     )
-    pageItem P4_FILE (
-        type: fileUpload
-        label {
-            label: Plantilla JSON
-        }
-        layout {
-            sequence: 10
-            region: @archivo
-            slot: regionBody
-        }
-        appearance {
-            template: @/optional-floating
-        }
-        display {
-            displayAs: blockDropzone
-        }
-        storage {
-            type: appTempFiles
-            maxFileSize: 250
-        }
-    )
-    button previsualizar (
-        buttonName: PREVISUALIZAR
-        label: Previsualizar
-        layout {
-            sequence: 10
-            region: @archivo
-            slot: next
-        }
-        appearance {
-            buttonTemplate: @/text
-            hot: true
-        }
-    )
-    process previsualizar (
-        name: Previsualizar
+    process versiones (
+        name: VERSIONES
         type: executeCode
         source {
             plsqlCode:
-            ```plsql
-            declare b blob; c clob; dest integer:=1; src integer:=1; ctx integer:=0; warn integer; begin
-            select blob_content into b from apex_application_temp_files where name=:P4_FILE and application_id=:APP_ID;
-            dbms_lob.createtemporary(c,true);
-            dbms_lob.converttoclob(c,b,dbms_lob.lobmaxsize,dest,src,nls_charset_id('AL32UTF8'),ctx,warn);
-            if warn<>0 or not json_object_t.parse(c).has('fields') then raise_application_error(-20012,'Plantilla JSON inválida'); end if;
-            apex_collection.create_or_truncate_collection('INV_PREVIEW');
-            apex_collection.add_member(p_collection_name=>'INV_PREVIEW',p_clob001=>c);
-            end;
-            ```
+```plsql
+declare rows_ sys_refcursor; begin
+  open rows_ for select version_id id,name,version_no version from inv_data.inv_v_templates order by name,version_no desc;
+  apex_json.open_object; apex_json.write('versions',rows_); apex_json.close_object;
+end;
+```
         }
         execution {
             sequence: 10
-        }
-        successMessage {
-            successMessage: Vista previa disponible.
-        }
-        serverSideCondition {
-            whenButtonPressed: @previsualizar
+            point: ajaxCallback
         }
     )
-    region vista (
-        name: Campos de la versión propuesta
-        type: classicReport
-        source {
-            location: localDatabase
-            type: sqlQuery
-            sqlQuery:
-            ```sql
-            select j.k,j.lbl,j.typ,j.app from apex_collections a cross apply json_table(a.clob001,'$.fields[*]' columns (k varchar2(64) path '$.key',lbl varchar2(200) path '$.label',typ varchar2(12) path '$.type',app varchar2(16) path '$.applicability')) j where a.collection_name='INV_PREVIEW'
-            ```
-        }
-        layout {
-            sequence: 20
-            slot: body
-        }
-        appearance {
-            template: @/standard
-        }
-        reportLayout {
-            numberOfRows: 20
-        }
-        componentAppearance {
-            template: @/standard
-        }
-        pagination {
-            type: nextAndPreviousLinks
-        }
-        messages {
-            whenNoDataFound: Sin registros para mostrar.
-        }
-        column K (
-            reportColumnQueryId: 1
-            derivedColumn: N
-
-            heading {
-                heading: Clave
-            }
-            layout {
-                sequence: 10
-            }
-
-        )
-        column LBL (
-            reportColumnQueryId: 2
-            derivedColumn: N
-
-            heading {
-                heading: Campo
-            }
-            layout {
-                sequence: 20
-            }
-
-        )
-        column TYP (
-            reportColumnQueryId: 3
-            derivedColumn: N
-
-            heading {
-                heading: Tipo
-            }
-            layout {
-                sequence: 30
-            }
-
-        )
-        column APP (
-            reportColumnQueryId: 4
-            derivedColumn: N
-
-            heading {
-                heading: Aplicabilidad
-            }
-            layout {
-                sequence: 40
-            }
-
-        )
-    )
-    button publicar (
-        buttonName: PUBLICAR
-        label: Publicar versión
-        layout {
-            sequence: 20
-            region: @archivo
-            slot: next
-        }
-        appearance {
-            buttonTemplate: @/text
-            hot: true
-        }
-    )
-    process publicar (
-        name: Publicar versión
+    process abrir (
+        name: ABRIR
         type: executeCode
         source {
             plsqlCode:
-            ```plsql
-            declare c clob; v number; begin select clob001 into c from apex_collections where collection_name='INV_PREVIEW' and seq_id=1; inv_data.inv_ui.publish(c,v); apex_collection.delete_collection('INV_PREVIEW'); end;
-            ```
+```plsql
+declare data_ clob; begin
+  select definition into data_ from inv_data.inv_v_templates where version_id=to_number(apex_application.g_x01);
+  apex_json.open_object; apex_json.write('definition',data_); apex_json.close_object;
+end;
+```
         }
         execution {
-            sequence: 20
-        }
-        successMessage {
-            successMessage: Versión publicada.
-        }
-        serverSideCondition {
-            whenButtonPressed: @publicar
+            sequence: 10
+            point: ajaxCallback
         }
     )
-    region versiones (
-        name: Versiones publicadas
-        type: classicReport
+    process guardar (
+        name: GUARDAR
+        type: executeCode
         source {
-            location: localDatabase
-            type: sqlQuery
-            sqlQuery:
-            ```sql
-            select version_id,name,version_no,created_at from inv_data.inv_v_templates order by version_id desc
-            ```
+            plsqlCode:
+```plsql
+declare c clob; v number; begin
+  dbms_lob.createtemporary(c,true);
+  for i in 1..apex_application.g_f01.count loop
+    if dbms_lob.getlength(c) + length(apex_application.g_f01(i)) > 250000 then
+      raise_application_error(-20011,'The template exceeds 250,000 characters.');
+    end if;
+    c:=c || apex_application.g_f01(i);
+  end loop;
+  inv_data.inv_ui.publish(c,v);
+  apex_json.open_object; apex_json.write('id',v); apex_json.close_object;
+exception when dup_val_on_index then raise_application_error(-20011,'That version or field key already exists. Check the version and field keys.');
+end;
+```
         }
-        layout {
-            sequence: 30
-            slot: body
+        execution {
+            sequence: 10
+            point: ajaxCallback
         }
-        appearance {
-            template: @/standard
-        }
-        reportLayout {
-            numberOfRows: 20
-        }
-        componentAppearance {
-            template: @/standard
-        }
-        pagination {
-            type: nextAndPreviousLinks
-        }
-        messages {
-            whenNoDataFound: Sin registros para mostrar.
-        }
-        column VERSION_ID (
-            reportColumnQueryId: 1
-            derivedColumn: N
-
-            heading {
-                heading: ID
-            }
-            layout {
-                sequence: 10
-            }
-
-        )
-        column NAME (
-            reportColumnQueryId: 2
-            derivedColumn: N
-
-            heading {
-                heading: Nombre
-            }
-            layout {
-                sequence: 20
-            }
-
-        )
-        column VERSION_NO (
-            reportColumnQueryId: 3
-            derivedColumn: N
-
-            heading {
-                heading: Versión
-            }
-            layout {
-                sequence: 30
-            }
-
-        )
-        column CREATED_AT (
-            reportColumnQueryId: 4
-            derivedColumn: N
-
-            heading {
-                heading: Publicada
-            }
-            layout {
-                sequence: 40
-            }
-
-        )
     )
+
 )
