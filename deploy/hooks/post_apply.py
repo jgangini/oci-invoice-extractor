@@ -271,6 +271,10 @@ def main():
         # Only known error codes are useful here. Driver messages can include SQL or credentials.
         match = re.search(r"\b(?:ORA|DPY|PLS)-\d{4,5}\b", str(exc))
         error = f" ({match.group()})" if match else ""
+        if stages[-1] == "database admin credential setup":
+            from deploy.hooks.admin_password import AdminHandoffError
+            if type(exc) is AdminHandoffError:
+                error = f" ({str(exc).rstrip('.')})"
         if isinstance(exc, oci.exceptions.ServiceError):
             error = f" (OCI HTTP {exc.status})"
             if exc.code in {"Conflict", "IncorrectState", "NotAuthorizedOrNotFound", "InvalidParameter", "LimitExceeded", "TooManyRequests"}:

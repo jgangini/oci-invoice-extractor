@@ -10,24 +10,67 @@ from deploy.hooks.database_target import DatabaseTargetError
 
 
 VERSION_NAME = "studio-admin"
+WAIT_SECONDS = 90
+
+
+class AdminHandoffError(DatabaseTargetError):
+    messages = {
+        "metadata_timeout": "Vault management did not report an active ADMIN secret at the expected version in time.",
+        "bundle_timeout": "Secrets retrieval did not return the matching CURRENT ADMIN bundle in time.",
+        "foreign_current": "The ADMIN credential has already changed outside this installation.",
+        "pending_rotation": "An ADMIN credential rotation is already pending.",
+        "bootstrap_mismatch": "The bootstrap ADMIN credential could not be verified.",
+        "login_unverified": "The new ADMIN login could not be verified.",
+    }
+
+    def __init__(self, reason):
+        super().__init__(self.messages[reason])
 
 
 def _content(bundle):
     return base64.b64decode(bundle.secret_bundle_content.content, validate=True)
 
 
-def _pending(secrets, secret_id):
+def _bundle_at_stage(secrets, secret_id, stage):
     try:
-        return secrets.get_secret_bundle(secret_id, stage="PENDING").data
+        return secrets.get_secret_bundle(secret_id, stage=stage).data
     except oci.exceptions.ServiceError as exc:
         if exc.status != 404:
             raise
         return None
 
 
-def _ready(vault, secret_id):
-    return oci.wait_until(vault, vault.get_secret(secret_id), "lifecycle_state", "ACTIVE",
-                          max_interval_seconds=4, max_wait_seconds=90)
+def _consistent_current(vault, secrets, secret_id, minimum=1):
+    """Wait for management and retrieval to agree on the same active version."""
+    current = None
+    waiting = "metadata_timeout"
+
+    def agrees(response):
+        nonlocal current, waiting
+        waiting = "metadata_timeout"
+        version = response.data.current_version_number
+        if version not in (None, 1, 2):
+            raise AdminHandoffError("foreign_current")
+        if response.data.lifecycle_state != "ACTIVE" or version is None or version < minimum:
+            return False
+        waiting = "bundle_timeout"
+        current = _bundle_at_stage(secrets, secret_id, "CURRENT")
+        if current is None:
+            return False
+        if current.version_number not in (1, 2):
+            raise AdminHandoffError("foreign_current")
+        if current.version_number > version:
+            waiting = "metadata_timeout"
+        return current.version_number == version
+
+    try:
+        meta = oci.wait_until(vault, vault.get_secret(secret_id), evaluate_response=agrees,
+                              max_interval_seconds=4, max_wait_seconds=WAIT_SECONDS)
+    except oci.exceptions.MaximumWaitTimeExceeded:
+        raise AdminHandoffError(waiting) from None
+    if _bundle_at_stage(secrets, secret_id, "PENDING") is not None:
+        raise AdminHandoffError("pending_rotation")
+    return meta, current
 
 
 def _connect(dsn, password):
@@ -57,26 +100,20 @@ def configure_admin_password(config, mode, outputs, password):
     secret_id = outputs["admin_secret_ocid"]
     dsn = outputs["db_dsn"]
     value = password.encode("utf-8")
-    meta = _ready(vault, secret_id)
-    current = secrets.get_secret_bundle(secret_id, stage="CURRENT").data
-    if current.version_number != meta.data.current_version_number:
-        raise DatabaseTargetError("The ADMIN secret changed during installation. Retry the operation.")
-    if _pending(secrets, secret_id) is not None:
-        raise DatabaseTargetError("An ADMIN credential rotation is already pending.")
+    meta, current = _consistent_current(vault, secrets, secret_id)
     if current.version_number == 1:
-        if hmac.compare_digest(_content(current), value) and _accepts(dsn, password):
-            return
+        if hmac.compare_digest(_content(current), value):
+            if _accepts(dsn, password):
+                return
+            raise AdminHandoffError("bootstrap_mismatch")
         content = oci.vault.models.Base64SecretContentDetails(
             name=VERSION_NAME, stage="CURRENT", content=base64.b64encode(value).decode("ascii"))
         vault.update_secret(secret_id, oci.vault.models.UpdateSecretDetails(
             enable_auto_generation=False, secret_content=content), if_match=meta.headers["etag"])
-        # Wait for the write itself. ACTIVE alone can still describe the old version.
-        oci.wait_until(vault, vault.get_secret(secret_id), "current_version_number", 2,
-                       max_interval_seconds=4, max_wait_seconds=90)
-        current = secrets.get_secret_bundle(secret_id, stage="CURRENT").data
+        _, current = _consistent_current(vault, secrets, secret_id, minimum=2)
     if (current.version_number != 2 or current.version_name != VERSION_NAME
             or not hmac.compare_digest(_content(current), value)):
-        raise DatabaseTargetError("The ADMIN credential has already changed outside this installation.")
+        raise AdminHandoffError("foreign_current")
     _apply_database_password(secrets, secret_id, dsn, password)
 
 
@@ -86,9 +123,9 @@ def _apply_database_password(secrets, secret_id, dsn, password):
     # On recovery either the new login works, or the original login can finish the handoff.
     original = secrets.get_secret_bundle(secret_id, version_number=1).data
     if original.version_number != 1:
-        raise DatabaseTargetError("The bootstrap ADMIN credential could not be verified.")
+        raise AdminHandoffError("bootstrap_mismatch")
     old = _content(original).decode("utf-8")
     with _connect(dsn, old) as admin:
         admin.changepassword(old, password)
     if not _accepts(dsn, password):
-        raise DatabaseTargetError("The new ADMIN login could not be verified.")
+        raise AdminHandoffError("login_unverified")
