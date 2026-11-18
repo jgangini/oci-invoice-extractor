@@ -1,0 +1,278 @@
+page 5 (
+    name: Rutas
+    alias: RUTAS
+    title: Rutas
+    appearance {
+        pageTemplate: @/standard
+    }
+    security {
+        authorizationScheme: @admin
+        pageAccessProtection: argumentsMustHaveChecksum
+    }
+    region activas (
+        name: Rutas activas
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+            ```sql
+            select prefix,name,version_no,target_key from inv_data.inv_v_routes order by prefix
+            ```
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+        reportLayout {
+            numberOfRows: 20
+        }
+        componentAppearance {
+            template: @/standard
+        }
+        pagination {
+            type: nextAndPreviousLinks
+        }
+        messages {
+            whenNoDataFound: Sin registros para mostrar.
+        }
+        column PREFIX (
+            reportColumnQueryId: 1
+            derivedColumn: N
+
+            heading {
+                heading: Prefijo
+            }
+            layout {
+                sequence: 10
+            }
+
+        )
+        column NAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+
+            heading {
+                heading: Plantilla
+            }
+            layout {
+                sequence: 20
+            }
+
+        )
+        column VERSION_NO (
+            reportColumnQueryId: 3
+            derivedColumn: N
+
+            heading {
+                heading: Versión
+            }
+            layout {
+                sequence: 30
+            }
+
+        )
+        column TARGET_KEY (
+            reportColumnQueryId: 4
+            derivedColumn: N
+
+            heading {
+                heading: Destino
+            }
+            layout {
+                sequence: 40
+            }
+
+        )
+    )
+    region ruta (
+        name: Configurar ruta
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+    )
+    pageItem P5_OLD (
+        type: textField
+        label {
+            label: Ruta que se reemplaza
+        }
+        layout {
+            sequence: 10
+            region: @ruta
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+
+    )
+    pageItem P5_PREFIX (
+        type: textField
+        label {
+            label: Prefijo de entrada
+        }
+        layout {
+            sequence: 20
+            region: @ruta
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+
+    )
+    pageItem P5_VERSION (
+        type: selectList
+        label {
+            label: Versión de plantilla
+        }
+        layout {
+            sequence: 30
+            region: @ruta
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select name || ' v' || version_no d, version_id r from inv_data.inv_v_templates order by name,version_no desc
+        }
+    )
+    pageItem P5_TARGET (
+        type: selectList
+        label {
+            label: Destino lógico
+        }
+        layout {
+            sequence: 40
+            region: @ruta
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select title d, target_key r from inv_data.inv_v_targets order by title
+        }
+    )
+    button guardar (
+        buttonName: GUARDAR
+        label: Guardar ruta
+        layout {
+            sequence: 50
+            region: @ruta
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+        }
+    )
+    process guardar (
+        name: Guardar ruta
+        type: executeCode
+        source {
+            plsqlCode:
+            ```plsql
+            begin inv_data.inv_ui.set_route(:P5_PREFIX,:P5_VERSION,:P5_TARGET,:P5_OLD); end;
+            ```
+        }
+        execution {
+            sequence: 50
+        }
+        successMessage {
+            successMessage: Ruta guardada.
+        }
+        serverSideCondition {
+            whenButtonPressed: @guardar
+        }
+    )
+
+    region destino (
+        name: Registrar destino lógico
+        type: staticContent
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+    )
+
+    pageItem P5_DEST_KEY (
+        type: textField
+        label {
+            label: Clave del destino
+        }
+        layout {
+            sequence: 10
+            region: @destino
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+
+    )
+
+    pageItem P5_DEST_TITLE (
+        type: textField
+        label {
+            label: Nombre del destino
+        }
+        layout {
+            sequence: 20
+            region: @destino
+            slot: regionBody
+        }
+        appearance {
+            template: @/optional-floating
+        }
+
+    )
+
+    button registrar (
+        buttonName: REGISTRAR
+        label: Registrar destino
+        layout {
+            sequence: 50
+            region: @destino
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+        }
+    )
+
+    process registrar (
+        name: Registrar destino
+        type: executeCode
+        source {
+            plsqlCode:
+            ```plsql
+            begin inv_data.inv_ui.register_target(:P5_DEST_KEY,:P5_DEST_TITLE); end;
+            ```
+        }
+        execution {
+            sequence: 50
+        }
+        successMessage {
+            successMessage: Destino registrado.
+        }
+        serverSideCondition {
+            whenButtonPressed: @registrar
+        }
+    )
+)

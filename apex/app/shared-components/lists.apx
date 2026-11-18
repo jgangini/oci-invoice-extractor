@@ -1,0 +1,111 @@
+list navigation-bar (
+    name: Navigation Bar
+
+    entry app-user (
+        label: &APP_USER.
+        icon {
+            imageIconCssClasses: fa-user
+        }
+        layout {
+            sequence: 10
+        }
+        link {
+            target: {
+                type: url
+                url: #
+            }
+        }
+        userDefinedAttributes {
+            2: has-username
+        }
+    )
+
+    entry list_item (
+        label: ---
+        layout {
+            sequence: 20
+            parentEntry: @app-user
+        }
+        link {
+            target: {
+                type: url
+                url: separator
+            }
+        }
+        serverSideCondition {
+            type: userIsAuthenticated
+        }
+    )
+
+    entry sign-out (
+        label: Cerrar sesión
+        icon {
+            imageIconCssClasses: fa-sign-out
+        }
+        layout {
+            sequence: 30
+            parentEntry: @app-user
+        }
+        link {
+            target: {
+                type: url
+                url: &LOGOUT_URL.
+            }
+        }
+        serverSideCondition {
+            type: userIsAuthenticated
+        }
+    )
+
+)
+
+list navigation-menu (
+    name: Navigation Menu
+
+    entry home (
+        label: Lotes
+        icon {
+            imageIconCssClasses: fa-home
+        }
+        layout {
+            sequence: 10
+        }
+        link {
+            target: {
+                page: 1
+            }
+        }
+    )
+
+    entry plantillas (
+        label: Plantillas
+        layout {
+            sequence: 40
+        }
+        link {
+            target: {
+                page: 4
+            }
+        }
+        security {
+            authorizationScheme: @admin
+        }
+    )
+
+    entry rutas (
+        label: Rutas
+        layout {
+            sequence: 50
+        }
+        link {
+            target: {
+                page: 5
+            }
+        }
+        security {
+            authorizationScheme: @admin
+        }
+    )
+
+)
+

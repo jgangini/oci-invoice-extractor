@@ -1,0 +1,9 @@
+output "autonomous_database_id" { value = oci_database_autonomous_database.invoices.id }
+output "db_dsn" { value = local.dsn }
+output "apex_base_url" { value = oci_database_autonomous_database.invoices.connection_urls[0].apex_url }
+output "bucket_name" { value = oci_objectstorage_bucket.invoices.name }
+output "object_namespace" { value = var.objectstorage_namespace }
+output "source_prefix" { value = var.source_prefix }
+output "event_rule_id" { value = oci_events_rule.ingest.id }
+output "function_id" { value = oci_functions_function.extractor.id }
+output "function_invoke_url" { value = "${oci_functions_function.extractor.invoke_endpoint}/20181201/functions/${oci_functions_function.extractor.id}/actions/invoke" }

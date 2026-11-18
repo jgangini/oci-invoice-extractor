@@ -1,0 +1,16 @@
+[project]
+name = "oci-invoice-extractor"
+version = "0.1.0"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "fdk>=0.1.90,<1", "oci>=2.150,<3", "oracledb>=3.1,<5",
+  "pypdf>=6.4,<8", "pypdfium2>=4.30,<6",
+  "rapidocr-onnxruntime==1.4.4"
+]
+
+[dependency-groups]
+dev = ["pytest>=8.4,<10"]
+
+[tool.uv]
+package = false
+

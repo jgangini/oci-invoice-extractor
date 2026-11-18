@@ -1,0 +1,135 @@
+page 1 (
+    name: Lotes
+    alias: LOTES
+    title: Lotes
+    appearance {
+        pageTemplate: @/standard
+    }
+    security {
+        authorizationScheme: @review
+        pageAccessProtection: argumentsMustHaveChecksum
+    }
+    region lotes (
+        name: Lotes recibidos
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+            ```sql
+            select batch_id, object_key, target_key, state, processed_docs, expected_docs, created_at from inv_data.inv_v_batches order by batch_id desc
+            ```
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+        }
+        reportLayout {
+            numberOfRows: 20
+        }
+        componentAppearance {
+            template: @/standard
+        }
+        pagination {
+            type: nextAndPreviousLinks
+        }
+        messages {
+            whenNoDataFound: Sin registros para mostrar.
+        }
+        column BATCH_ID (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: link
+            heading {
+                heading: Lote
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 2
+                    items: {
+                        P2_BATCH: \#BATCH_ID#\
+                    }
+                }
+                linkText: \#BATCH_ID#\
+            }
+        )
+        column OBJECT_KEY (
+            reportColumnQueryId: 2
+            derivedColumn: N
+
+            heading {
+                heading: Archivo ZIP
+            }
+            layout {
+                sequence: 20
+            }
+
+        )
+        column TARGET_KEY (
+            reportColumnQueryId: 3
+            derivedColumn: N
+
+            heading {
+                heading: Destino
+            }
+            layout {
+                sequence: 30
+            }
+
+        )
+        column STATE (
+            reportColumnQueryId: 4
+            derivedColumn: N
+
+            heading {
+                heading: Estado
+            }
+            layout {
+                sequence: 40
+            }
+
+        )
+        column PROCESSED_DOCS (
+            reportColumnQueryId: 5
+            derivedColumn: N
+
+            heading {
+                heading: Procesados
+            }
+            layout {
+                sequence: 50
+            }
+
+        )
+        column EXPECTED_DOCS (
+            reportColumnQueryId: 6
+            derivedColumn: N
+
+            heading {
+                heading: Esperados
+            }
+            layout {
+                sequence: 60
+            }
+
+        )
+        column CREATED_AT (
+            reportColumnQueryId: 7
+            derivedColumn: N
+
+            heading {
+                heading: Recepción
+            }
+            layout {
+                sequence: 70
+            }
+
+        )
+    )
+)
