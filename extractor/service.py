@@ -13,7 +13,7 @@ from .preview import preview
 from .worker import DocumentError, DocumentWorker
 
 LOG = logging.getLogger(__name__)
-ENGINE = "0.2.0"
+ENGINE = "0.3.3"
 
 
 def source_event(event, config):
@@ -158,7 +158,11 @@ def invoke(event, function_id):
         management = oci.functions.FunctionsManagementClient({}, signer=signer)
         endpoint = management.get_function(function_id).data.invoke_endpoint
         client = oci.functions.FunctionsInvokeClient({}, signer=signer, service_endpoint=endpoint)
-        client.invoke_function(function_id, json.dumps({"batch_id": batch, "generation": gen}), fn_invoke_type="detached")
+        payload = json.dumps({"batch_id": batch, "generation": gen}).encode("utf-8")
+        accepted = client.invoke_function(function_id=function_id, invoke_function_body=payload, fn_invoke_type="detached")
+        accepted.data.close()
+        if accepted.status != 202:
+            raise RuntimeError("Detached batch invocation was not accepted")
 
     with oracledb.connect(user=config["DB_USER"], password=base64.b64decode(secret).decode(),
                           dsn=config["DB_DSN"]) as conn:

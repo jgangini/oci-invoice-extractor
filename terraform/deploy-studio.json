@@ -17,6 +17,10 @@
     "existing_database_wallet": "none"
   },
   "form": {
+    "email_access_fields": [
+      "apex_operator",
+      "apex_operator_password"
+    ],
     "groups": [
       {
         "id": "credentials",

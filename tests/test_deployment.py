@@ -45,6 +45,8 @@ class DeploymentTests(unittest.TestCase):
         self.assertTrue({"function_image_ocid", "function_image_digest", "admin_secret_ocid",
                          "runtime_secret_ocid"}.isdisjoint(fields))
         self.assertEqual(fields["access_cidrs"]["label"], "Allowed IP ranges")
+        self.assertEqual(manifest["form"]["email_access_fields"], ["apex_operator", "apex_operator_password"])
+        self.assertTrue(fields["apex_operator_password"]["secret"])
         self.assertEqual(fields["source_prefix"]["visible_when"], {"field": "bucket_mode", "equals": "existing"})
         self.assertEqual(fields["source_prefix"]["default"], "source/")
         admin = fields["autonomous_database_admin_password"]
