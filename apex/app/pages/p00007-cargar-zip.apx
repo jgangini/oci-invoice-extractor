@@ -39,7 +39,7 @@ page 7 (
         }
         lov {
             type: sqlQuery
-            sqlQuery: select prefix || ' (' || name || ' v' || version_no || ', ' || target_key || ')' d,prefix r from inv_data.inv_v_upload_routes order by prefix
+            sqlQuery: select prefix || ' (' || target_key || ')' d,prefix r from inv_data.inv_v_upload_routes order by prefix
         }
     )
     pageItem P7_FILE (

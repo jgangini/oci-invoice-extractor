@@ -10,11 +10,11 @@ page 6 (
         pageAccessProtection: argumentsMustHaveChecksum
     }
     javaScript {
-        fileUrls: #APP_FILES#invoice-monitor.js?v=2
+        fileUrls: #APP_FILES#invoice-monitor.js?v=3
         executeWhenPageLoads: InvoiceMonitor.start();
     }
     css {
-        fileUrls: #APP_FILES#invoice.css?v=2
+        fileUrls: #APP_FILES#invoice.css?v=3
     }
     region entrada (
         name: Process Document
@@ -26,27 +26,6 @@ page 6 (
         appearance {
             template: @/standard
             cssClasses: inv-pdf-input
-        }
-    )
-    pageItem P6_VERSION (
-        type: selectList
-        label {
-            label: Extraction template
-        }
-        layout {
-            sequence: 10
-            region: @entrada
-            slot: regionBody
-        }
-        appearance {
-            template: @/required-floating
-        }
-        validation {
-            valueRequired: true
-        }
-        lov {
-            type: sqlQuery
-            sqlQuery: select name || ' v' || version_no d,version_id r from inv_data.inv_v_test_templates order by name,version_no desc
         }
     )
     pageItem P6_FILE (
@@ -178,7 +157,6 @@ declare
   piece_ blob;
   b blob;
   id_ varchar2(32);
-  version_ number;
   previous_ pls_integer;
   fragment_ varchar2(32767);
 
@@ -194,13 +172,6 @@ begin
     reject_upload('The upload sequence is invalid. Run extraction again.');
     return;
   end if;
-  begin
-    select version_id into version_ from inv_data.inv_v_test_templates
-    where version_id=to_number(apex_application.g_x03 default null on conversion error);
-  exception when no_data_found then
-    reject_upload('Choose an available extraction template.');
-    return;
-  end;
   if not regexp_like(nvl(filename_,'!'),'\.pdf$','i') or length(filename_) > 512
      or apex_application.g_f01.count not between 1 and 66 then
     reject_upload('Choose a PDF file up to 12 MiB.');
@@ -252,7 +223,7 @@ begin
     dbms_lob.append(b,piece.blob001);
   end loop;
   dbms_lob.append(b,piece_);
-  inv_data.inv_upload.test_pdf(version_,filename_,b,id_);
+  inv_data.inv_upload.test_pdf(filename_,b,id_);
   apex_collection.create_or_truncate_collection('INV_UI_TEST');
   apex_collection.add_member(p_collection_name=>'INV_UI_TEST',p_c001=>id_,p_c003=>filename_,p_blob001=>b);
   apex_collection.delete_collection(staging_);
@@ -273,13 +244,14 @@ end;
         source {
             plsqlCode:
 ```plsql
-declare t sys_refcursor; f sys_refcursor; p sys_refcursor; l sys_refcursor; id_ varchar2(80); begin
+declare t sys_refcursor; f sys_refcursor; p sys_refcursor; l sys_refcursor; id_ varchar2(80); template_ varchar2(100); begin
  select max(c001) into id_ from apex_collections where collection_name='INV_UI_TEST'
    and (apex_application.g_x01 is null or c001=apex_application.g_x01);
+ select max(name) into template_ from inv_data.inv_v_test_templates;
  apex_json.open_object; apex_json.write('tracking',id_);
+ apex_json.write('templateName',template_);
  if id_ is not null then
-  open t for select t.filename,t.state,t.stage,t.error_code,v.name || ' v' || v.version_no template_name
-    from inv_data.inv_v_tests t join inv_data.inv_v_test_templates v on v.version_id=t.version_id where t.test_id=id_;
+  open t for select filename,state,stage,error_code,template_name from inv_data.inv_v_tests where test_id=id_;
   open f for select label,field_key,status,original_text,normalized_text,page_no,method,evidence,evidence_box,anchor_text from inv_data.inv_v_test_fields where test_id=id_ order by field_key;
   open p for select page_no,width_px,height_px,method,fragment_total,fragment_shown,fragment_truncated,
     apex_page.get_url(p_page=>9,p_items=>'P9_TEST_ID,P9_PAGE',p_values=>id_||','||to_char(page_no)) image_url

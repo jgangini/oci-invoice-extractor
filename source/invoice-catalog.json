@@ -1,6 +1,5 @@
 {
   "name": "Invoice Catalog",
-  "version": 3,
   "fields": [
     {
       "id": "F-01",

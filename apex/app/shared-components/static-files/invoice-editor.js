@@ -33,10 +33,11 @@ globalThis.InvoiceEditor = (() => {
 
     function validate(value) {
         if (!value || !boundedText(value.name, 100) ||
-            !Number.isSafeInteger(value.version) || value.version < 1 || !Array.isArray(value.fields) ||
+            !Array.isArray(value.fields) ||
             !value.fields.length || value.fields.length > 100) {
-            throw Error("Enter a name, a positive whole version number, and 1 to 100 fields.");
+            throw Error("Enter a name and 1 to 100 fields.");
         }
+        delete value.version;
         const keys = new Set();
         value.fields.forEach((field, i) => {
             if (!validField(field, keys)) {
@@ -106,22 +107,17 @@ globalThis.InvoiceEditor = (() => {
     function show(data) {
         draft = data;
         id("inv-name").value = data.name;
-        id("inv-number").value = data.version;
         drawFields();
     }
 
     function definition() {
         draft.name = id("inv-name").value.trim();
-        draft.version = Number(id("inv-number").value);
         return validate(draft);
     }
 
-    async function list(selected) {
-        const result = await apex.server.process("VERSIONES", {}, {dataType:"json"});
-        const menu = id("inv-version");
-        menu.replaceChildren(new Option("Select a version", ""));
-        result.versions.forEach(row => menu.add(new Option(row.NAME + " v" + row.VERSION, row.ID)));
-        if (selected) menu.value = String(selected);
+    async function load() {
+        const data = await apex.server.process("ABRIR", {}, {dataType:"json"});
+        if (!modified && data.definition) show(validate(JSON.parse(data.definition)));
     }
 
     function act(target, fn) {
@@ -135,22 +131,14 @@ globalThis.InvoiceEditor = (() => {
     }
 
     function allowReplace() {
-        return !modified || window.confirm("Replace the unpublished changes to this template?");
+        return !modified || window.confirm("Replace the unsaved changes to this template?");
     }
 
     function start() {
         const root = id("invoice-editor");
-        show({name:"", version:1, fields:[]});
-        root.addEventListener("input", e => { if (e.target !== id("inv-version")) modified = true; });
-        list().catch(() => message("Template versions could not be loaded.", true));
-        act("inv-load", async () => {
-            if (!id("inv-version").value) throw Error("Select a saved version.");
-            if (!allowReplace()) return;
-            const data = await apex.server.process("ABRIR", {x01:id("inv-version").value}, {dataType:"json"});
-            show(validate(JSON.parse(data.definition)));
-            modified = false;
-            message("Version loaded. Increase the version number before publishing changes.");
-        });
+        show({name:"", fields:[]});
+        root.addEventListener("input", () => { modified = true; });
+        load().catch(() => message("The template could not be loaded.", true));
         act("inv-import", () => id("inv-json-file").click());
         id("inv-json-file").addEventListener("change", async e => {
             try {
@@ -158,7 +146,7 @@ globalThis.InvoiceEditor = (() => {
                 if (!file || !allowReplace()) return;
                 if (file.size > 250000) throw Error("The JSON file exceeds 250 KB.");
                 const data = validate(JSON.parse((await file.text()).replace(/^\uFEFF/, "")));
-                show(data); modified = true; message("Template imported. Review its fields before publishing.");
+                show(data); modified = true; message("Template imported. Review its fields before saving.");
             } catch (err) { message(err instanceof SyntaxError ? "The file does not contain valid JSON." : err.message, true); }
             finally { e.target.value = ""; }
         });
@@ -173,7 +161,7 @@ globalThis.InvoiceEditor = (() => {
             const value = definition();
             const blob = new Blob([JSON.stringify(value, null, 2) + "\n"], {type:"application/json;charset=utf-8"});
             const link = element("a");
-            link.download = value.name.replace(/[^\p{L}\p{N}_-]+/gu, "-") + "-v" + value.version + ".json";
+            link.download = value.name.replace(/[^\p{L}\p{N}_-]+/gu, "-") + ".json";
             link.href = URL.createObjectURL(blob);
             root.append(link); link.click(); link.remove();
             setTimeout(() => URL.revokeObjectURL(link.href), 2000);
@@ -182,9 +170,9 @@ globalThis.InvoiceEditor = (() => {
         act("inv-save", async () => {
             const text = JSON.stringify(definition());
             const chunks = Array.from(text.matchAll(/[\s\S]{1,3000}/gu), m => m[0]);
-            const saved = await apex.server.process("GUARDAR", {f01:chunks}, {dataType:"json"});
-            modified = false; await list(saved.id);
-            message("Version published. Its JSON is ready to download.");
+            await apex.server.process("GUARDAR", {f01:chunks}, {dataType:"json"});
+            modified = false;
+            message("Template saved.");
         });
     }
     return {start};

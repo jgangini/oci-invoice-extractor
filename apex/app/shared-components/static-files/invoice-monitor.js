@@ -409,7 +409,7 @@ globalThis.InvoiceMonitor = (() => {
         });
     }
 
-    async function uploadPdf(file, version) {
+    async function uploadPdf(file) {
         const uploadId = crypto.randomUUID();
         const partSize = 384 * 1024;
         for (let offset = 0; offset < file.size; offset += partSize) {
@@ -418,7 +418,6 @@ globalThis.InvoiceMonitor = (() => {
             const response = await apex.server.process("PROBAR", {
                 x01: uploadId,
                 x02: String(offset / partSize),
-                x03: version,
                 x04: file.name,
                 x05: end === file.size ? "Y" : "N",
                 f01: apex.server.chunk(encoded)
@@ -427,15 +426,16 @@ globalThis.InvoiceMonitor = (() => {
         }
     }
 
+    const pdfInput = 'input[type=file]#P6_FILE, #P6_FILE_CONTAINER input[type=file]';
+
     function pdfSubmission(root, setStatus, accepted, reset) {
         const run = document.querySelector(".inv-pdf-run");
         const label = run?.querySelector(".t-Button-label") ?? run;
         const inputRegion = run?.closest(".inv-pdf-input");
-        const template = document.getElementById("P6_VERSION");
         let state = "idle", file;
 
         function syncRunButton() {
-            if (run) run.disabled = state !== "reviewing" && (state === "processing" || !template?.value || !file);
+            if (run) run.disabled = state !== "reviewing" && (state === "processing" || !file);
         }
 
         function setState(next) {
@@ -454,22 +454,21 @@ globalThis.InvoiceMonitor = (() => {
         }
 
         syncRunButton();
-        template?.addEventListener("change", syncRunButton);
         run?.addEventListener("click", async () => {
             if (run.disabled) return;
             if (state === "reviewing") {
                 setState("idle");
                 reset();
-                template?.focus();
+                inputRegion?.querySelector(pdfInput)?.focus();
                 return;
             }
             setState("processing");
             root.classList.add("is-visible");
-            pdfResult(root, {tracking: true}, {STAGE: "QUEUED", TEMPLATE_NAME: template.selectedOptions[0]?.text});
+            pdfResult(root, {tracking: true}, {STAGE: "QUEUED", TEMPLATE_NAME: root.dataset.templateName});
             setStatus("Submitting PDF for extraction…");
             let response;
             try {
-                response = await uploadPdf(file, template.value);
+                response = await uploadPdf(file);
             } catch {
                 uploadFailed("The upload could not be confirmed. Reload the page to check its status before retrying.");
                 return;
@@ -533,7 +532,7 @@ globalThis.InvoiceMonitor = (() => {
                 update();
             }, reset);
             document.addEventListener("change", event => {
-                if (event.target.matches("input[type=file]#P6_FILE, #P6_FILE_CONTAINER input[type=file]")) {
+                if (event.target.matches(pdfInput)) {
                     selectFile(event.target.files?.[0]);
                 }
             }, true);
@@ -546,6 +545,7 @@ globalThis.InvoiceMonitor = (() => {
             paused:() => tracking === null || Boolean(selectedFile),
             params:() => ({x01: tracking}),
             render(result, row) {
+                root.dataset.templateName = result.templateName || "";
                 submission.setState(pdfFormStates[row.STATE] || "idle");
                 root.classList.toggle("is-visible", Boolean(result.tracking));
                 pdfResult(root, result, row);

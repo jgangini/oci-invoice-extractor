@@ -29,7 +29,7 @@ class ApexControlsTest(unittest.TestCase):
         const dom = selector => document.querySelector(selector);
         let saved, downloaded, selected, pages = [];
         window.apex = {server:{process:async (name, data) => {
-          if (name === "VERSIONES") return {versions:[{ID:1,NAME:"Original",VERSION:1}]};
+          if (name === "ABRIR") return {definition:JSON.stringify({...catalog, version:3})};
           if (name === "GUARDAR") { saved=JSON.parse(data.f01.join("")); return {id:1}; }
           if (name === "RECIENTES") return {batches:[{BATCH_ID:27,OBJECT_KEY:"entrada/externo.zip"}]};
           if (name === "ESTADO") {
@@ -44,15 +44,16 @@ class ApexControlsTest(unittest.TestCase):
         HTMLAnchorElement.prototype.click=function() {downloaded=this.href;};
         (async()=>{
           InvoiceEditor.start(); InvoiceMonitor.start(); await nextTick();
+          check(dom("#inv-name").value===catalog.name && !dom("#inv-version, #inv-number"),"open the only saved template");
           const transfer=new DataTransfer();
-          transfer.items.add(new File([JSON.stringify(catalog)],"plantilla.json",{type:"application/json"}));
+          transfer.items.add(new File([JSON.stringify({...catalog,name:"Imported catalog",version:9})],"plantilla.json",{type:"application/json"}));
           const input=dom("#inv-json-file"); input.files=transfer.files; input.dispatchEvent(new Event("change"));
-          for(let i=0; i<100 && !editor.querySelector("details"); i++) await nextTick();
-          check(editor.querySelectorAll("details").length===12,"import");
+          for(let i=0; i<100 && dom("#inv-name").value!=="Imported catalog"; i++) await nextTick();
+          check(dom("#inv-name").value==="Imported catalog" && editor.querySelectorAll("details").length===12,"import");
           const label=editor.querySelector("details input");
           label.value="Campo editado"; label.dispatchEvent(new Event("input",{bubbles:true}));
-          dom("#inv-number").value=String(catalog.version+1); dom("#inv-save").click(); await nextTick();
-          check(saved.version===catalog.version+1 && saved.fields[0].label==="Campo editado","save edits");
+          dom("#inv-save").click(); await nextTick();
+          check(!Object.hasOwn(saved,"version") && saved.name==="Imported catalog" && saved.fields[0].label==="Campo editado","save edits without versioning");
           check(saved.fields[0].definition===catalog.fields[0].definition,"preserve metadata");
           dom("#inv-download").click(); await nextTick();
           check(JSON.stringify(await (await fetch(downloaded)).json())===JSON.stringify(saved),"download");
@@ -69,7 +70,7 @@ class ApexControlsTest(unittest.TestCase):
 
     def test_pdf_fields_and_ocr_lines_have_separate_clickable_layers(self):
         harness = """
-        const data = {tracking:"fixture", preview:"#original", items:[{STATE:"DONE",STAGE:"DONE",TEMPLATE_NAME:"Invoice Catalog v3"}],
+        const data = {tracking:"fixture", templateName:"Invoice Catalog", preview:"#original", items:[{STATE:"DONE",STAGE:"DONE",TEMPLATE_NAME:"Previous catalog"}],
           pages:[{PAGE_NO:1,WIDTH_PX:1200,HEIGHT_PX:900,IMAGE_URL:"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",METHOD:"native",FRAGMENT_TOTAL:2,FRAGMENT_SHOWN:2}],
           fields:[{FIELD_KEY:"invoice",LABEL:"Factura",STATUS:"found",NORMALIZED_TEXT:"DEMO",ANCHOR_TEXT:"Raw OCR excerpt",PAGE_NO:1,EVIDENCE_BOX:[.2,.3,.5,.4]},
                   {FIELD_KEY:"missing",LABEL:"Issue date",STATUS:"absent"}],
@@ -110,8 +111,8 @@ class ApexControlsTest(unittest.TestCase):
             const templateTitle=document.querySelector(".inv-template-heading");
             const filter=spread.querySelector(".inv-field-filter");
             const fieldName=spread.querySelector(".inv-field-name");
-            if(templateTitle.hidden || templateTitle.textContent!=="Invoice Catalog v3" || !templateTitle.nextElementSibling.matches(".inv-timeline"))
-              throw Error("the tracked template version appears above the timeline");
+            if(templateTitle.hidden || templateTitle.textContent!=="Previous catalog" || !templateTitle.nextElementSibling.matches(".inv-timeline"))
+              throw Error("the template used for this extraction appears above the timeline");
             const rem=getComputedStyle(document.documentElement).fontSize;
             if([templateTitle,docTitle,fieldsTitle].some(title=>getComputedStyle(title).fontSize!==rem || getComputedStyle(title).fontWeight!=="650"))
               throw Error("review headings match the region heading typography");
@@ -200,28 +201,17 @@ class ApexControlsTest(unittest.TestCase):
             const file=document.createElement("input"); file.type="file"; file.id=file.name="P6_FILE";
             document.querySelector(".t-Region-bodyWrap").append(file);
             const run=document.querySelector(".inv-pdf-run");
-            const template=document.getElementById("P6_VERSION");
-            const pickTemplate=value=>{template.value=value; template.dispatchEvent(new Event("change"));};
             if(run.textContent!=="New execution" || run.disabled) throw Error("completed result supports starting a new execution");
             run.click();
             if(!run.disabled) throw Error("empty form disables extraction");
             if(!templateTitle.hidden) throw Error("a new execution clears the previous template heading");
-            pickTemplate("1");
-            if(!run.disabled) throw Error("template alone cannot run extraction");
-            pickTemplate("");
             const upload=new DataTransfer(); upload.items.add(new File(["%PDF-1.4"],"synthetic.pdf",{type:"application/pdf"}));
             file.files=upload.files; file.dispatchEvent(new Event("change"));
             const preview=documentLoader.querySelector(".inv-preview");
             if(preview.querySelector("iframe, img") || !layer.disabled ||
                getComputedStyle(spread).display!=="none") throw Error("preview stays hidden until submit");
             if(!status.textContent.includes("Ready to extract: synthetic.pdf")) throw Error("selection feedback");
-            run.click();
-            if(!run.disabled || getComputedStyle(spread).display!=="none") throw Error("a PDF without a template cannot open review");
-            pickTemplate("1");
-            if(run.disabled || getComputedStyle(spread).display!=="none") throw Error("both inputs are ready but review waits for submission");
-            pickTemplate("");
-            if(!run.disabled) throw Error("clearing the template disables extraction again");
-            pickTemplate("1");
+            if(run.disabled || getComputedStyle(spread).display!=="none") throw Error("a valid PDF is ready to use the current catalog");
             const invalid=new DataTransfer(); invalid.items.add(new File(["invalid"],"invalid.txt"));
             file.files=invalid.files; file.dispatchEvent(new Event("change"));
             if(!status.classList.contains("is-error") || getComputedStyle(status).position==="absolute") throw Error("file errors are visible");
@@ -237,14 +227,14 @@ class ApexControlsTest(unittest.TestCase):
                 if(!run.disabled || getComputedStyle(run,"::before").animationName!=="inv-pdf-spin") throw Error("inline spinner and blocked action on submit");
                 if(getComputedStyle(document.querySelector(".t-Region-bodyWrap")).display!=="none") throw Error("upload form is hidden during submit");
                 const first=await request;
-                if(first.args.pageItems || first.args.x03!=="1" || first.args.x04!=="synthetic.pdf" ||
+                if(first.args.pageItems || Object.hasOwn(first.args,"x03") || first.args.x04!=="synthetic.pdf" ||
                    atob(first.args.f01.join(""))!=="%PDF-1.4" || !(first.options.timeout>0)) throw Error("Ajax upload sends file bytes without setting session state");
                 if(resultsArea.closest(".t-skel").dataset.state!=="loading" || !resultsArea.inert) throw Error("upload shows the placeholder");
                 if(documentLoader.dataset.state!=="loading" || !preview.inert || preview.querySelector("iframe, img"))
                   throw Error("document remains concealed while the upload is pending");
                 if(!status.textContent.includes("Submitting PDF") || getComputedStyle(spread).display==="none" ||
                    document.querySelector('[aria-current="step"]').textContent!=="ReceivedIn progress") throw Error("submit immediately opens the live timeline");
-                if(templateTitle.hidden || templateTitle.textContent!=="Catalog") throw Error("the chosen template appears during upload");
+                if(templateTitle.hidden || templateTitle.textContent!=="Invoice Catalog") throw Error("the current template appears during upload");
                 const placeholder=documentLoader.querySelector(".inv-document-placeholder");
                 const documentBounds=documentLoader.getBoundingClientRect(), placeholderBounds=placeholder.getBoundingClientRect();
                 if(documentBounds.height<=0 || ["top","right","bottom","left"].some(edge=>Math.abs(documentBounds[edge]-placeholderBounds[edge])>1))
@@ -287,9 +277,7 @@ class ApexControlsTest(unittest.TestCase):
         self.run_controls(("00006",), harness, """
             <form class="inv-pdf-input">
               <button type="button" class="inv-pdf-run">Run extraction</button>
-              <div class="t-Region-bodyWrap">
-                <select id="P6_VERSION" name="P6_VERSION"><option value="">Choose a template</option><option value="1">Catalog</option></select>
-              </div>
+              <div class="t-Region-bodyWrap"></div>
             </form>
         """)
 
@@ -350,14 +338,14 @@ class ApexControlsTest(unittest.TestCase):
           run.click();
           check(run.disabled && run.textContent==="Run extraction" && getComputedStyle(form).display!=="none", "new execution restores upload controls");
           check(getComputedStyle(document.querySelector(".inv-split")).display==="none" && !results.querySelector(".inv-match"), "previous review is hidden");
-          check(document.activeElement.id==="P6_VERSION", "focus returns to the extraction template");
+          check(document.activeElement.id==="P6_FILE", "focus returns to the PDF input");
           document.body.dataset.outcome="pass";
         })().catch(error=>{document.body.dataset.outcome=error.message;});
         """
         self.run_controls(("00006",), harness, """
             <section class="inv-pdf-input">
               <button class="inv-pdf-run">Run extraction</button>
-              <div class="t-Region-bodyWrap"><select id="P6_VERSION"><option value="1">Catalog</option></select></div>
+              <div class="t-Region-bodyWrap"><input type="file" id="P6_FILE"></div>
             </section>
         """)
 

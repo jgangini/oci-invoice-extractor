@@ -17,7 +17,7 @@ page 5 (
             type: sqlQuery
             sqlQuery:
             ```sql
-            select prefix,name,version_no,target_key from inv_data.inv_v_routes order by prefix
+            select prefix,name,target_key from inv_data.inv_v_routes order by prefix
             ```
         }
         layout {
@@ -63,20 +63,8 @@ page 5 (
             }
 
         )
-        column VERSION_NO (
-            reportColumnQueryId: 3
-            derivedColumn: N
-
-            heading {
-                heading: Version
-            }
-            layout {
-                sequence: 30
-            }
-
-        )
         column TARGET_KEY (
-            reportColumnQueryId: 4
+            reportColumnQueryId: 3
             derivedColumn: N
 
             heading {
@@ -129,24 +117,6 @@ page 5 (
         }
 
     )
-    pageItem P5_VERSION (
-        type: selectList
-        label {
-            label: Template version
-        }
-        layout {
-            sequence: 30
-            region: @ruta
-            slot: regionBody
-        }
-        appearance {
-            template: @/optional-floating
-        }
-        lov {
-            type: sqlQuery
-            sqlQuery: select name || ' v' || version_no d, version_id r from inv_data.inv_v_templates order by name,version_no desc
-        }
-    )
     pageItem P5_TARGET (
         type: selectList
         label {
@@ -184,7 +154,7 @@ page 5 (
         source {
             plsqlCode:
             ```plsql
-            begin inv_data.inv_ui.set_route(:P5_PREFIX,:P5_VERSION,:P5_TARGET,:P5_OLD); end;
+            begin inv_data.inv_ui.set_route(:P5_PREFIX,:P5_TARGET,:P5_OLD); end;
             ```
         }
         execution {

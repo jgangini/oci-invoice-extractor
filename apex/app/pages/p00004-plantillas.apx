@@ -10,7 +10,7 @@ page 4 (
         pageAccessProtection: argumentsMustHaveChecksum
     }
     javaScript {
-        fileUrls: #APP_FILES#invoice-editor.js
+        fileUrls: #APP_FILES#invoice-editor.js?v=2
         executeWhenPageLoads: InvoiceEditor.start();
     }
     region editor (
@@ -21,15 +21,13 @@ page 4 (
 ```html
 <div id="invoice-editor" class="inv-console">
   <div class="inv-toolbar">
-    <label>Saved version<select id="inv-version"><option value="">Select a version</option></select></label>
-    <button type="button" id="inv-load">Open version</button>
     <button type="button" id="inv-import">Import JSON</button>
     <input id="inv-json-file" type="file" accept=".json,application/json" hidden>
   </div>
-  <div class="inv-pair"><label>Template name<input id="inv-name" maxlength="100" required></label><label>Version<input id="inv-number" type="number" min="1" step="1" required></label></div>
+  <div class="inv-pair"><label>Template name<input id="inv-name" maxlength="100" required></label></div>
   <div class="inv-toolbar"><h2>Fields</h2><button type="button" id="inv-add">Add field</button></div>
   <div id="inv-fields"></div>
-  <div class="inv-toolbar"><button type="button" id="inv-save" class="inv-primary">Publish version</button><button type="button" id="inv-download">Download JSON</button></div>
+  <div class="inv-toolbar"><button type="button" id="inv-save" class="inv-primary">Save template</button><button type="button" id="inv-download">Download JSON</button></div>
   <p id="inv-message" role="status"></p>
 </div>
 ```
@@ -42,23 +40,6 @@ page 4 (
             template: @/standard
         }
     )
-    process versiones (
-        name: VERSIONES
-        type: executeCode
-        source {
-            plsqlCode:
-```plsql
-declare rows_ sys_refcursor; begin
-  open rows_ for select version_id id,name,version_no version from inv_data.inv_v_templates order by name,version_no desc;
-  apex_json.open_object; apex_json.write('versions',rows_); apex_json.close_object;
-end;
-```
-        }
-        execution {
-            sequence: 10
-            point: ajaxCallback
-        }
-    )
     process abrir (
         name: ABRIR
         type: executeCode
@@ -66,8 +47,9 @@ end;
             plsqlCode:
 ```plsql
 declare data_ clob; begin
-  select definition into data_ from inv_data.inv_v_templates where version_id=to_number(apex_application.g_x01);
+  select definition into data_ from inv_data.inv_v_templates;
   apex_json.open_object; apex_json.write('definition',data_); apex_json.close_object;
+exception when no_data_found then apex_json.open_object; apex_json.close_object;
 end;
 ```
         }
@@ -90,9 +72,9 @@ declare c clob; v number; begin
     end if;
     c:=c || apex_application.g_f01(i);
   end loop;
-  inv_data.inv_ui.publish(c,v);
+  inv_data.inv_ui.save_template(c,v);
   apex_json.open_object; apex_json.write('id',v); apex_json.close_object;
-exception when dup_val_on_index then raise_application_error(-20011,'That version or field key already exists. Check the version and field keys.');
+exception when dup_val_on_index then raise_application_error(-20011,'Each field key must be unique.');
 end;
 ```
         }

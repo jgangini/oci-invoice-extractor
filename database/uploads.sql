@@ -1,6 +1,6 @@
 create or replace package inv_upload authid definer as
  procedure submit_zip(p_prefix varchar2,p_filename varchar2,p_file blob,p_object_key out varchar2);
- procedure test_pdf(p_version_id number,p_filename varchar2,p_file blob,p_test_id out varchar2);
+ procedure test_pdf(p_filename varchar2,p_file blob,p_test_id out varchar2);
  function test_page_content(p_test_id varchar2,p_page_no number) return blob;
 end;
 /
@@ -36,8 +36,8 @@ create or replace package body inv_upload as
   execute immediate q'~begin dbms_cloud.put_object(credential_name=>'OCI$RESOURCE_PRINCIPAL',object_uri=>:url,contents=>:contents); end;~'
     using v_url,p_file;
  end;
- procedure test_pdf(p_version_id number,p_filename varchar2,p_file blob,p_test_id out varchar2) is
-  v_url varchar2(2048); v_payload varchar2(150); v_count number; v_actor inv_operator.username%type;
+ procedure test_pdf(p_filename varchar2,p_file blob,p_test_id out varchar2) is
+  v_url varchar2(2048); v_payload varchar2(150); v_count number; v_actor inv_operator.username%type; v_catalog number;
  begin
   check_file(p_file,p_filename,'.pdf',12*1024*1024,'255044462D');
   select invoke_url into v_url from inv_settings where id=1;
@@ -47,9 +47,11 @@ create or replace package body inv_upload as
   select count(*) into v_count from inv_pdf_test where actor=v_actor
    and state in ('QUEUED','RUNNING') and updated_at>systimestamp-interval '10' minute;
   if v_count>=5 then raise_application_error(-20023,'You have five active PDF tests. Wait for one to finish before starting another.'); end if;
+  v_catalog:=inv_catalog.current_id();
+  if v_catalog is null then raise_application_error(-20011,'Save a template before processing a PDF.'); end if;
   p_test_id:=lower(rawtohex(sys_guid()));
   insert into inv_pdf_test(test_id,actor,version_id,filename,file_data)
-   values(p_test_id,v_actor,p_version_id,p_filename,p_file);
+   values(p_test_id,v_actor,v_catalog,p_filename,p_file);
   select json_object('preview_id' value p_test_id) into v_payload from dual;
   commit;
   begin
@@ -107,21 +109,22 @@ create or replace package body inv_test_worker as
 end;
 /
 create or replace view inv_v_upload_routes as
- select r.prefix,t.name,t.version_no,r.target_key from inv_route r join inv_template t on t.version_id=r.version_id
- where inv_ui.permitted('REVIEW')=1
+ select r.prefix,t.name,r.target_key from inv_route r cross join inv_template t
+ where t.version_id=inv_catalog.current_id() and inv_ui.permitted('REVIEW')=1
 /
 create or replace view inv_v_test_templates as
- select version_id,name,version_no from inv_template where inv_ui.permitted('REVIEW')=1
+ select name from inv_template where version_id=inv_catalog.current_id() and inv_ui.permitted('REVIEW')=1
 /
 create or replace view inv_v_tests as
- select test_id,version_id,filename,
+ select p.test_id,p.version_id,p.filename,
  case when state in ('QUEUED','RUNNING') and updated_at<systimestamp-interval '10' minute then 'ERROR' else state end state,
  case when state in ('QUEUED','RUNNING') and updated_at<systimestamp-interval '10' minute then 'ERROR' else stage end stage,
- created_at,updated_at,
- case when state in ('QUEUED','RUNNING') and updated_at<systimestamp-interval '10' minute then 'worker_timeout' else error_code end error_code
- from inv_pdf_test
+ p.created_at,p.updated_at,
+ case when state in ('QUEUED','RUNNING') and updated_at<systimestamp-interval '10' minute then 'worker_timeout' else error_code end error_code,
+ t.name template_name
+ from inv_pdf_test p join inv_template t on t.version_id=p.version_id
  where actor=upper(sys_context('APEX$SESSION','APP_USER')) and inv_ui.permitted('REVIEW')=1
- and created_at>systimestamp-interval '1' day
+ and p.created_at>systimestamp-interval '1' day
 /
 create or replace view inv_v_test_pages as
  with pages as (

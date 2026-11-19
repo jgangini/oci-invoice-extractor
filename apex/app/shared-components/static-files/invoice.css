@@ -29,7 +29,7 @@ html, body {overflow-x: clip;}
 .t-Body-contentInner {max-width: 96rem; margin-inline: auto;}
 .t-Region-title {font-weight: 650;}
 .inv-pdf-input .t-Region-body {max-width: 54rem;}
-.inv-pdf-input :is(#P6_VERSION_CONTAINER, #P6_FILE_CONTAINER) {max-width: 28rem;}
+.inv-pdf-input #P6_FILE_CONTAINER {max-width: 28rem;}
 .inv-pdf-input:is(.is-processing, .is-reviewing) > .t-Region-bodyWrap {display: none;}
 .inv-pdf-input.is-processing .inv-pdf-run::before {
   content: "";

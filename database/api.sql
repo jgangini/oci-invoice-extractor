@@ -1,19 +1,39 @@
 create or replace package inv_catalog authid definer as
- procedure install_version(p_definition clob,p_id out number);
+ function current_id return number;
+ procedure save_template(p_definition clob,p_id out number);
 end;
 /
 create or replace package body inv_catalog as
- procedure install_version(p_definition clob,p_id out number) is
+ function current_id return number is v_id number;
+ begin
+  select max(version_id) keep(dense_rank last order by version_no) into v_id from inv_template;
+  return v_id;
+ end;
+ procedure save_template(p_definition clob,p_id out number) is
   obj json_object_t; fields json_array_t; field json_object_t; labels json_array_t;
   nm varchar2(100); ver number; k varchar2(64); typ varchar2(12); fmt varchar2(12);
-  v_label varchar2(200); v_required number;
+  v_label varchar2(200); v_required number; v_lock number; v_valid number; v_payload clob; v_existing clob;
  begin
-  if dbms_lob.getlength(p_definition)>250000 then raise_application_error(-20011,'The template exceeds the size limit.'); end if;
-  obj:=json_object_t.parse(p_definition); nm:=trim(obj.get_string('name')); ver:=obj.get_number('version');
+  savepoint save_catalog;
+  if p_definition is null or dbms_lob.getlength(p_definition)>250000 then
+   raise_application_error(-20011,'Enter a valid JSON template within the size limit.'); end if;
+  select case when p_definition is json strict with unique keys then 1 else 0 end into v_valid from dual;
+  if v_valid=0 then raise_application_error(-20011,'The template must contain valid JSON with unique properties.'); end if;
+  obj:=json_object_t.parse(p_definition); nm:=trim(obj.get_string('name'));
   fields:=obj.get_array('fields');
-  if nm is null or ver is null or ver<1 or ver<>trunc(ver) or fields is null or fields.get_size not between 1 and 100 then
-   raise_application_error(-20011,'Check the template name, version, and fields.'); end if;
-  insert into inv_template(name,version_no,definition) values(nm,ver,p_definition) returning version_id into p_id;
+  if nm is null or fields is null or fields.get_size not between 1 and 100 then
+   raise_application_error(-20011,'Check the template name and fields.'); end if;
+  obj.remove('version');
+  obj.put('name',nm);
+  v_payload:=obj.to_clob();
+  select id into v_lock from inv_settings where id=1 for update;
+  p_id:=current_id();
+  if p_id is not null then
+   select definition into v_existing from inv_template where version_id=p_id;
+   if dbms_lob.compare(v_existing,v_payload)=0 then return; end if;
+  end if;
+  select nvl(max(version_no),0)+1 into ver from inv_template;
+  insert into inv_template(name,version_no,definition) values(nm,ver,v_payload) returning version_id into p_id;
   for i in 0..fields.get_size-1 loop
    field:=treat(fields.get(i) as json_object_t); k:=field.get_string('key'); typ:=field.get_string('type');
    fmt:=coalesce(field.get_string('format'),typ); labels:=field.get_array('labels');
@@ -32,6 +52,9 @@ create or replace package body inv_catalog as
    v_required:=case when field.get_string('applicability')='required' then 1 else 0 end;
    insert into inv_field values(p_id,k,v_label,typ,v_required);
   end loop;
+ exception when others then
+  rollback to save_catalog;
+  raise;
  end;
 end;
 /
@@ -55,7 +78,7 @@ create or replace package body inv_ingest as
   exception when no_data_found then
    begin
     insert into inv_batch(object_key,etag,source_version,route_prefix,version_id,target_key)
-    select p_key,p_etag,p_version,prefix,version_id,target_key from inv_route
+    select p_key,p_etag,p_version,prefix,inv_catalog.current_id(),target_key from inv_route
      where substr(p_key,1,length(prefix))=prefix;
     if sql%rowcount=0 then p_id:=null; return; end if;
    exception when dup_val_on_index then null;
@@ -165,9 +188,9 @@ end;
 /
 create or replace package inv_ui authid definer as
  function permitted(p_level varchar2) return number;
- procedure publish(p_definition clob,p_id out number);
+ procedure save_template(p_definition clob,p_id out number);
  procedure register_target(p_key varchar2,p_title varchar2);
- procedure set_route(p_prefix varchar2,p_version number,p_target varchar2,p_previous varchar2 default null);
+ procedure set_route(p_prefix varchar2,p_target varchar2,p_previous varchar2 default null);
  procedure approve(p_result number,p_last_review number,p_value varchar2,p_reason varchar2);
  procedure retry_batch(p_batch number);
 end;
@@ -183,10 +206,10 @@ create or replace package body inv_ui as
  begin
   if permitted(p_level)=0 then raise_application_error(-20003,'You do not have permission to perform this action.'); end if;
  end;
- procedure publish(p_definition clob,p_id out number) is
+ procedure save_template(p_definition clob,p_id out number) is
  begin
   require_permission('ADMIN');
-  inv_catalog.install_version(p_definition,p_id);
+  inv_catalog.save_template(p_definition,p_id);
  end;
  procedure register_target(p_key varchar2,p_title varchar2) is
  begin
@@ -196,8 +219,8 @@ create or replace package body inv_ui as
   merge into inv_target t using(select p_key k from dual) s on(t.target_key=s.k)
    when matched then update set title=trim(p_title) when not matched then insert values(p_key,trim(p_title));
  end;
- procedure set_route(p_prefix varchar2,p_version number,p_target varchar2,p_previous varchar2 default null) is
-  v_root varchar2(512); v_other number;
+ procedure set_route(p_prefix varchar2,p_target varchar2,p_previous varchar2 default null) is
+  v_root varchar2(512); v_other number; v_catalog number;
  begin
   require_permission('ADMIN');
   select source_prefix into v_root from inv_settings where id=1 for update;
@@ -207,9 +230,11 @@ create or replace package body inv_ui as
   select count(*) into v_other from inv_route where prefix<>p_prefix and
    (substr(prefix,1,length(p_prefix))=p_prefix or substr(p_prefix,1,length(prefix))=prefix);
   if v_other>0 then raise_application_error(-20005,'The folder prefix overlaps another route.'); end if;
+  v_catalog:=inv_catalog.current_id();
+  if v_catalog is null then raise_application_error(-20011,'Save a template before configuring a route.'); end if;
   merge into inv_route t using(select p_prefix prefix from dual) s on(t.prefix=s.prefix)
-   when matched then update set version_id=p_version,target_key=p_target
-   when not matched then insert(prefix,version_id,target_key) values(p_prefix,p_version,p_target);
+   when matched then update set version_id=v_catalog,target_key=p_target
+   when not matched then insert(prefix,version_id,target_key) values(p_prefix,v_catalog,p_target);
  end;
  procedure approve(p_result number,p_last_review number,p_value varchar2,p_reason varchar2) is
   v_doc number; v_key varchar2(64); v_latest number; v_review number;
@@ -280,10 +305,11 @@ create or replace view inv_v_results as
  where x.seq=1 and inv_ui.permitted('REVIEW')=1
 /
 create or replace view inv_v_templates as
- select t.version_id,t.name,t.version_no,t.created_at,t.definition from inv_template t where inv_ui.permitted('ADMIN')=1
+ select t.name,t.definition from inv_template t where t.version_id=inv_catalog.current_id() and inv_ui.permitted('ADMIN')=1
 /
 create or replace view inv_v_routes as
- select r.prefix,r.version_id,t.name,t.version_no,r.target_key from inv_route r join inv_template t on t.version_id=r.version_id where inv_ui.permitted('ADMIN')=1
+ select r.prefix,t.name,r.target_key from inv_route r cross join inv_template t
+ where t.version_id=inv_catalog.current_id() and inv_ui.permitted('ADMIN')=1
 /
 create or replace view inv_v_targets as
  select target_key,title from inv_target where inv_ui.permitted('ADMIN')=1

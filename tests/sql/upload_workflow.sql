@@ -78,3 +78,47 @@ begin
 exception when others then rollback; raise;
 end;
 /
+declare
+  v_prefix inv_route.prefix%type;
+  v_old_id number; v_new_id number; v_duplicate_id number; v_batch number; v_existing_batch number; v_generation number;
+  v_old clob; v_current clob; v_definition clob; v_file blob;
+  v_test varchar2(32):=lower(rawtohex(sys_guid()));
+  v_original_key inv_batch.object_key%type;
+  v_old_name varchar2(100); v_new_name constant varchar2(100):='Catalog smoke test';
+  doc json_object_t;
+begin
+  select min(prefix) into v_prefix from inv_route;
+  v_original_key:=v_prefix||v_test||'-before.zip';
+  v_old_id:=inv_catalog.current_id();
+  select name into v_old_name from inv_template where version_id=v_old_id;
+  inv_ingest.open_batch(v_original_key,'qa',null,v_batch,v_generation,v_old);
+  if v_batch is null or json_value(v_old,'$.name')<>v_old_name then
+    raise_application_error(-20105,'A new batch must use the current catalog');
+  end if;
+  insert into inv_pdf_test(test_id,actor,version_id,filename,file_data)
+    values(v_test,'LOCAL-QA',v_old_id,'sample.pdf',empty_blob());
+  doc:=json_object_t.parse(v_old);
+  doc.put('name',v_new_name);
+  doc.put('version',99);
+  inv_catalog.save_template(doc.to_clob(),v_new_id);
+  inv_catalog.save_template(doc.to_clob(),v_duplicate_id);
+  if v_new_id=v_old_id or v_new_id<>inv_catalog.current_id() or v_new_id<>v_duplicate_id then
+    raise_application_error(-20106,'Saving a template must replace the current choice and reuse identical content');
+  end if;
+  inv_ingest.open_batch(v_prefix||v_test||'-after.zip','qa',null,v_existing_batch,v_generation,v_current);
+  if v_existing_batch is null or json_value(v_current,'$.name')<>v_new_name or json_value(v_current,'$.version') is not null then
+    raise_application_error(-20107,'New batches must use the current template without a public version');
+  end if;
+  inv_ingest.open_batch(v_original_key,'qa',null,v_existing_batch,v_generation,v_definition);
+  if v_existing_batch<>v_batch or dbms_lob.compare(v_definition,v_old)<>0 then
+    raise_application_error(-20108,'A running batch must keep its original template');
+  end if;
+  inv_test_worker.claim(v_test,lower(rawtohex(sys_guid())),v_file,v_definition);
+  if v_definition is null or dbms_lob.compare(v_definition,v_old)<>0 then
+    raise_application_error(-20109,'A queued PDF test must keep its original template');
+  end if;
+  rollback;
+  dbms_output.put_line('PASS: one current catalog with preserved definitions for pending work.');
+exception when others then rollback; raise;
+end;
+/
