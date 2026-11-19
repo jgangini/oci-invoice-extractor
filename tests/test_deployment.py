@@ -98,18 +98,56 @@ class DeploymentTests(unittest.TestCase):
         self.assertFalse(preflight.password_valid('Bad"1234_test', "INV_FN"))
         self.assertFalse(preflight.password_valid("xInv_Fn1234_safe", "INV_FN"))
 
+    @staticmethod
+    def endpoint_outputs(host, function="ocid1.fnfunc.oc1.ord.test123"):
+        return {"function_id": function, "function_invoke_url": f"https://{host}/20181201/functions/{function}/actions/invoke",
+                "object_namespace": "testns", "bucket_name": "invoice-test"}
+
     def test_resource_principal_install_can_resume_after_grant(self):
-        target = "https://invoke.us-chicago-1.functions.oci.oraclecloud.com"
         for present in (0, 1):
             with self.subTest(schema_grant_present=present):
+                host = ("test1.functions.us-chicago-1.oci.oraclecloud.com",
+                        "test1.us-chicago-1.functions.oci.oraclecloud.com")[present]
                 admin = MagicMock()
                 cur = admin.cursor.return_value.__enter__.return_value
                 cur.fetchone.side_effect = [(1,), (present,)]
-                post_apply.enable_retry(admin, target, "https://objectstorage.us-chicago-1.oraclecloud.com/n/test/b/test/o/")
+                base = post_apply.enable_retry(admin, "us-chicago-1", self.endpoint_outputs(host + ":443"))
+                self.assertEqual(base, "https://objectstorage.us-chicago-1.oraclecloud.com/n/testns/b/invoice-test/o/")
                 statements = [call.args[0].lower() for call in cur.execute.call_args_list]
                 self.assertEqual(sum("enable_resource_principal(" in sql for sql in statements), 1 - present)
                 grants = [call.kwargs["host"] for call in cur.execute.call_args_list if "append_host_ace" in call.args[0]]
-                self.assertEqual(grants, ["invoke.us-chicago-1.functions.oci.oraclecloud.com", "objectstorage.us-chicago-1.oraclecloud.com"])
+                self.assertEqual(grants, [host, "objectstorage.us-chicago-1.oraclecloud.com"])
+
+    def test_endpoints_follow_the_sdk_region_realm(self):
+        host = "test1.functions.us-gov-ashburn-1.oci.oraclegovcloud.com"
+        outputs = self.endpoint_outputs(host, "ocid1.fnfunc.oc3.us-gov-ashburn-1.test123")
+        outputs["bucket_name"] = "invoice fixture"
+        hosts, base = post_apply.regional_endpoints("us-gov-ashburn-1", outputs)
+        self.assertEqual(hosts, (host, "objectstorage.us-gov-ashburn-1.oraclegovcloud.com"))
+        self.assertEqual(base, "https://objectstorage.us-gov-ashburn-1.oraclegovcloud.com/n/testns/b/invoice%20fixture/o/")
+        with self.assertRaisesRegex(ValueError, "region"):
+            post_apply.regional_endpoints("unregistered-1", outputs)
+        with patch("oci.regions.endpoint_for", return_value="https://example.test"), self.assertRaisesRegex(
+            ValueError, "Object Storage endpoint"
+        ):
+            post_apply.regional_endpoints("us-gov-ashburn-1", outputs)
+
+    def test_invalid_invocation_authorities_and_paths_never_reach_database(self):
+        host = "test1.functions.us-chicago-1.oci.oraclecloud.com"
+        outputs = self.endpoint_outputs(host)
+        real = outputs["function_invoke_url"]
+        for invalid in (
+            real.replace("https:", "http:"), real.replace(host, host + ":1443"),
+            real.replace(host, "user@" + host), real.replace(host, host + "@example.test"),
+            real.replace(host, host + ".example.test"), real.replace(host, "extra." + host),
+            real.replace("us-chicago-1", "us-phoenix-1"), real.replace("oraclecloud.com", "oraclegovcloud.com"),
+            real.replace("test123", "other"), real + "?q=1", real + "#fragment", real + "/",
+        ):
+            with self.subTest(url=invalid):
+                admin = MagicMock()
+                with self.assertRaisesRegex(ValueError, "invocation URL"):
+                    post_apply.enable_retry(admin, "us-chicago-1", {**outputs, "function_invoke_url": invalid})
+                admin.cursor.assert_not_called()
 
     def test_catalog_upload_does_not_replace_an_existing_object(self):
         from oci.exceptions import ServiceError

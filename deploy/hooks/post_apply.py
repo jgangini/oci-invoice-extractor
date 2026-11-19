@@ -90,13 +90,30 @@ def schema_session(admin, schema, password, dsn):
             cursor.execute(f"alter user {schema} revoke connect through ADMIN")
 
 
-def enable_retry(admin, invoke_url, object_base_url, *, existing_database=False):
-    host = urlsplit(invoke_url)
-    if host.scheme != "https" or not (host.hostname or "").endswith(".functions.oci.oraclecloud.com"):
-        raise ValueError("Unsupported Functions endpoint")
-    storage = urlsplit(object_base_url)
-    if storage.scheme != "https" or not re.fullmatch(r"objectstorage\.[a-z0-9-]+\.(?:oci\.)?oraclecloud\.com", storage.netloc):
-        raise ValueError("Unsupported Object Storage endpoint")
+def regional_endpoints(region, outputs):
+    from oci import regions
+
+    if region not in regions.REGION_REALMS:
+        raise ValueError("Unsupported OCI region for database HTTP access")
+    domain = regions.REALMS[regions.REGION_REALMS[region]]
+    storage_host = f"objectstorage.{region}.{domain}"
+    endpoint = regions.endpoint_for("object_storage", region=region)
+    if endpoint != f"https://{storage_host}":
+        raise ValueError("Unsupported regional Object Storage endpoint")
+    opaque = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+    regional_service = rf"(?:functions\.{re.escape(region)}|{re.escape(region)}\.functions)"
+    function_host = rf"{opaque}\.{regional_service}\.oci\.{re.escape(domain)}"
+    invoke = re.fullmatch(rf"https://({function_host})(?::443)?/20181201/functions/"
+                          r"(ocid1\.fnfunc\.[A-Za-z0-9._-]+)/actions/invoke", outputs["function_invoke_url"])
+    if not invoke or invoke[2] != outputs["function_id"]:
+        raise ValueError("Functions invocation URL does not match the selected region and function")
+    namespace = quote(outputs["object_namespace"], safe="")
+    bucket = quote(outputs["bucket_name"], safe="")
+    return (invoke[1], storage_host), f"{endpoint}/n/{namespace}/b/{bucket}/o/"
+
+
+def enable_retry(admin, region, outputs, *, existing_database=False):
+    hosts, object_base_url = regional_endpoints(region, outputs)
     with admin.cursor() as cur:
         if not scalar(cur, "select count(*) from dba_credentials where owner='ADMIN' and credential_name='OCI$RESOURCE_PRINCIPAL'"):
             if existing_database:
@@ -105,10 +122,11 @@ def enable_retry(admin, invoke_url, object_base_url, *, existing_database=False)
         if not scalar(cur, """select count(*) from all_tab_privs where grantee='INV_DATA'
                 and table_schema='ADMIN' and table_name='OCI$RESOURCE_PRINCIPAL'"""):
             cur.execute("begin dbms_cloud_admin.enable_resource_principal(username=>'INV_DATA'); end;")
-        for hostname in (host.hostname, storage.hostname):
+        for hostname in hosts:
             cur.execute("""begin dbms_network_acl_admin.append_host_ace(host=>:host,
                 lower_port=>443, upper_port=>443, ace=>xs$ace_type(privilege_list=>xs$name_list('http'),
                 principal_name=>'INV_DATA',principal_type=>xs_acl.ptype_db)); end;""", host=hostname)
+    return object_base_url
 
 
 def install_data(session, outputs, operator, object_base_url, catalog):
@@ -222,10 +240,6 @@ def install(stages):
     secrets = oci.secrets.SecretsClient(cfg)
     events = oci.events.EventsClient(cfg)
     storage = oci.object_storage.ObjectStorageClient(cfg)
-    endpoint = storage.base_client.endpoint.rstrip("/")
-    namespace = quote(outputs["object_namespace"], safe="")
-    bucket = quote(outputs["bucket_name"], safe="")
-    object_base_url = f"{endpoint}/n/{namespace}/b/{bucket}/o/"
     catalog = (ROOT / "source/invoice-catalog.json").read_text(encoding="utf-8")
     stages.append("target and Vault verification")
     delivery(events, outputs, outputs["bucket_compartment_id"], False)
@@ -239,7 +253,8 @@ def install(stages):
         check_install_target(admin, context["deployment_id"], reserve=True)
         prepare_users(admin, runtime_password)
         stages.append("resource principal and HTTPS access setup")
-        enable_retry(admin, outputs["function_invoke_url"], object_base_url, existing_database=inputs["autonomous_database_mode"] == "existing")
+        object_base_url = enable_retry(admin, context["region"], outputs,
+                                       existing_database=inputs["autonomous_database_mode"] == "existing")
         stages.append("data model and template installation")
         with schema_session(admin, "INV_DATA", admin_password, dsn) as owner:
             install_data(owner, outputs, operator, object_base_url, catalog)
