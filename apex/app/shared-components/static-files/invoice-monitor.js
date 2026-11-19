@@ -2,6 +2,7 @@
 globalThis.InvoiceMonitor = (() => {
     "use strict";
     const terminal = new Set(["DONE", "REVIEW", "ERROR"]);
+    const pdfFormStates = {QUEUED: "processing", RUNNING: "processing", DONE: "reviewing", REVIEW: "reviewing"};
     const states = {QUEUED:"Queued",RUNNING:"Processing",DONE:"Complete",ERROR:"Error",REVIEW:"Needs review",
                     PENDING:"Pending",found:"Found",matched:"Found",valid:"Valid",ambiguous:"Ambiguous",absent:"Missing",invalid:"Invalid",
                     text:"Text",ocr:"OCR",native:"PDF text"};
@@ -12,13 +13,22 @@ globalThis.InvoiceMonitor = (() => {
     };
     const named = state => states[state] || state || "—";
 
+    function stageStatus(index, current, state) {
+        if (index > current) return "Pending";
+        if (state === "ERROR") {
+            if (index === current) return "Error";
+            return index === 0 ? "Complete" : "Unconfirmed";
+        }
+        return index < current || terminal.has(state) ? "Complete" : "In progress";
+    }
+
     function timeline(container, titles, current, state) {
+        const progress = JSON.stringify([titles, current, state]);
+        if (container.dataset.progress === progress) return;
+        container.dataset.progress = progress;
         const steps = titles.map((title, index) => {
             const step = node("li");
-            const phase = current < 0 || index > current ? "Pending" :
-                index === current && state === "ERROR" ? "Error" :
-                state === "ERROR" && index > 0 ? "Unconfirmed" :
-                index < current || state === "DONE" || state === "REVIEW" ? "Complete" : "In progress";
+            const phase = stageStatus(index, current, state);
             step.dataset.state = phase;
             if (index === current) step.setAttribute("aria-current", "step");
             step.append(node("strong", title), node("small", phase));
@@ -59,17 +69,14 @@ globalThis.InvoiceMonitor = (() => {
         } catch { return null; }
     }
 
-    function reviewControls(root, url, pages = []) {
+    function reviewControls(root, pages = []) {
         const toolbar = root.querySelector(".inv-page-controls");
         const selector = toolbar.querySelector(".inv-page-choice");
         const layer = toolbar.querySelector(".inv-layer-choice");
-        const open = toolbar.querySelector(".inv-open-original");
         selector.replaceChildren(...(pages.length ? pages.map(p => new Option("Page " + p.PAGE_NO, p.PAGE_NO)) : [new Option("Original PDF")]));
         layer.replaceChildren(...(pages.length ? [new Option("Template fields", "fields"), new Option("Recognized text", "ocr")] : [new Option("No overlay")]));
         selector.disabled = layer.disabled = !pages.length;
         selector.onchange = layer.onchange = null;
-        open.disabled = !url;
-        open.onclick = url ? () => window.open(url, "_blank", "noopener,noreferrer") : null;
         return {selector, layer};
     }
 
@@ -88,6 +95,7 @@ globalThis.InvoiceMonitor = (() => {
 
     function evidenceCard(field, index, hasBox, onClick) {
         const card = node("article"); card.className = "inv-match inv-ink-" + index % 6;
+        const header = node("div"); header.className = "inv-match-header";
         const heading = node("h3");
         const title = node(hasBox ? "button" : "span", (index + 1) + ". " + (field.LABEL || field.FIELD_KEY));
         if (hasBox) {
@@ -95,97 +103,261 @@ globalThis.InvoiceMonitor = (() => {
             title.setAttribute("aria-label", field.LABEL + ", show evidence on page " + field.PAGE_NO);
             title.addEventListener("click", onClick);
         }
-        heading.append(title); card.append(heading, node("strong", field.NORMALIZED_TEXT ?? field.ORIGINAL_TEXT ?? "No value"));
-        const source = hasBox ? "Page " + field.PAGE_NO : "No location available";
-        card.append(node("small", [named(field.STATUS), field.METHOD && named(field.METHOD), source].filter(Boolean).join(", ")));
+        heading.append(title); header.append(heading); card.append(header);
+        if (field.STATUS) {
+            const tag = node("span", named(field.STATUS));
+            tag.className = "inv-field-status";
+            tag.dataset.status = field.STATUS;
+            header.append(tag);
+        }
+        const value = field.NORMALIZED_TEXT ?? field.ORIGINAL_TEXT;
+        if (value != null && value !== "") card.append(node("strong", value));
+        const source = [field.METHOD && named(field.METHOD), field.PAGE_NO && "Page " + field.PAGE_NO].filter(Boolean).join(", ");
+        if (source) card.append(node("small", source));
         const anchor = field.ANCHOR_TEXT || field.EVIDENCE;
-        if (anchor) card.append(node("p", anchor));
+        if (anchor && anchor !== value) card.append(node("p", anchor));
         return {card, button:hasBox ? title : null};
     }
 
+    function fieldCount(fields) {
+        const found = fields.filter(field => field.STATUS === "found").length;
+        return {text: fields.length + "/" + found, description: fields.length + " fields total, " + found + " found"};
+    }
+
+    function resultsHeading(heading, title, count) {
+        heading.textContent = title;
+        if (!count) return;
+        const tally = node("span", " (" + count.text + ")");
+        tally.className = "inv-result-count";
+        tally.title = count.description;
+        heading.append(tally);
+    }
+
     function pageLayer(page, kind, templateFields, lines) {
-        if (kind === "fields") return {title:"Extracted fields", fields:templateFields, summary:"", empty:"No fields were returned."};
+        if (kind === "fields") return {title:"Extracted fields", fields:templateFields,
+            count:fieldCount(templateFields), empty:"No fields were returned."};
         const fields = lines.filter(l => l.PAGE_NO === page.PAGE_NO).map(l => ({
             FIELD_KEY:"line-" + l.FRAGMENT_NO, LABEL:"Text region " + l.FRAGMENT_NO,
             NORMALIZED_TEXT:l.TEXT_VALUE + (Number(l.TEXT_TRUNCATED) ? "… (text truncated)" : ""),
             METHOD:l.METHOD || page.METHOD, PAGE_NO:l.PAGE_NO, EVIDENCE_BOX:l.EVIDENCE_BOX
         }));
-        const count = "Text regions: " + (page.FRAGMENT_SHOWN ?? fields.length) + " of " + (page.FRAGMENT_TOTAL ?? fields.length);
-        const summary = count + (Number(page.FRAGMENT_TRUNCATED) ? ". The preview limit was reached." : ".");
-        return {title:"Recognized text", fields, summary, empty:"No text regions were saved for this page."};
+        const shown = page.FRAGMENT_SHOWN ?? fields.length;
+        const total = page.FRAGMENT_TOTAL ?? shown;
+        const count = shown < total ? {text:shown + "/" + total, description:shown + " of " + total + " text regions shown"} :
+            {text:shown, description:shown + " text regions on this page"};
+        return {title:"Recognized text", fields, count, empty:"No text regions were saved for this page."};
     }
 
-    function evidence(root, pages, templateFields, originalUrl, lines) {
-        const {selector, layer} = reviewControls(root, originalUrl, pages);
+    function filterOptions(select, fields, all) {
+        const selected = select.value;
+        select.replaceChildren(new Option(all, ""), ...fields.map(field =>
+            new Option(field.LABEL || field.FIELD_KEY, field.FIELD_KEY)));
+        select.value = fields.some(field => field.FIELD_KEY === selected) ? selected : "";
+        select.disabled = !fields.length;
+    }
+
+    function fieldFilters(root, fields) {
+        const name = root.querySelector(".inv-field-name");
+        const status = root.querySelector(".inv-field-filter");
+        filterOptions(name, fields, "All fields");
+        status.disabled = !fields.some(field => field.STATUS);
+        if (status.disabled) status.value = "";
+        return {name, status};
+    }
+
+    function fieldRows(fields, name = "", status = "") {
+        return fields.map((field, index) => ({field, index}))
+            .filter(({field}) => (!name || field.FIELD_KEY === name) && (!status || field.STATUS === status));
+    }
+
+    function spotlight(mask, marker) {
+        mask.classList.toggle("is-active", Boolean(marker));
+        if (!marker) return;
+        const {left, top, width, height} = marker.style;
+        mask.style.setProperty("--spot-x", left);
+        mask.style.setProperty("--spot-y", top);
+        mask.style.setProperty("--spot-right", "calc(" + left + " + " + width + ")");
+        mask.style.setProperty("--spot-bottom", "calc(" + top + " + " + height + ")");
+        marker.classList.add("is-spotlit");
+    }
+
+    function setSkeletonState(panel, state) {
+        const loading = state === "loading";
+        panel.dataset.state = state;
+        panel.setAttribute("aria-busy", String(loading));
+        panel.querySelector(".t-skel-content").inert = loading;
+    }
+
+    function waitForPreview(preview, media) {
+        const panel = preview.closest(".t-skel");
+        setSkeletonState(panel, "loading");
+        function finish(error) {
+            if (!preview.contains(media)) return;
+            if (error) {
+                const message = node("p", "The document preview could not be loaded.");
+                message.className = "inv-preview-error";
+                media.replaceWith(message);
+            }
+            setSkeletonState(panel, "ready");
+        }
+        media.addEventListener("load", () => finish(false), {once:true});
+        media.addEventListener("error", () => finish(true), {once:true});
+    }
+
+    function renderEvidencePage(preview, viewer, page, mask) {
+        const existing = viewer.querySelector("img");
+        if (existing?.getAttribute("src") === page.IMAGE_URL) {
+            viewer.querySelectorAll(".inv-box").forEach(marker => marker.remove());
+            return;
+        }
+        const img = node("img");
+        img.alt = "Page " + page.PAGE_NO + " of the analyzed document";
+        img.width = Number(page.WIDTH_PX); img.height = Number(page.HEIGHT_PX);
+        viewer.replaceChildren(img, mask);
+        waitForPreview(preview, img);
+        img.src = page.IMAGE_URL;
+    }
+
+    function focusEvidenceMarker(preview, marker) {
+        if (!preview.inert) {
+            marker.focus();
+            return;
+        }
+        const active = document.activeElement;
+        preview.querySelector("img")?.addEventListener("load", () => {
+            if (document.activeElement === active && marker.isConnected) marker.focus();
+        }, {once:true});
+    }
+
+    function evidence(root, pages, templateFields, lines) {
+        const {selector, layer} = reviewControls(root, pages);
         layer.options[1].disabled = !lines.length;
         const viewer = node("div"); viewer.className = "inv-page-image";
-        const limit = node("p"); limit.className = "inv-ocr-summary"; limit.setAttribute("role", "status");
-        root.querySelector(".inv-preview").replaceChildren(limit, viewer);
+        const mask = node("div"); mask.className = "inv-evidence-mask"; mask.setAttribute("aria-hidden", "true");
+        const preview = root.querySelector(".inv-preview");
+        preview.replaceChildren(viewer);
         const results = root.querySelector(".inv-results");
+        const heading = root.querySelector("#inv-campos");
+        const filters = fieldFilters(root, templateFields);
+        const filterControls = filters.name.closest(".inv-field-controls");
+        const regionFilter = root.querySelector(".inv-region-filter");
+        const regionControls = regionFilter.closest(".inv-region-controls");
         const available = new Map(pages.map(page => [String(page.PAGE_NO), page]));
         const links = new Map(), markers = new Map();
-        let chosen, fields;
+        let chosen, hovered, focused, shownPage, fields, regionsPage;
 
-        function highlight(field) {
-            chosen = field.FIELD_KEY;
-            links.forEach((item, key) => {
-                item.card.classList.toggle("is-selected", key === chosen);
-                item.button?.setAttribute("aria-pressed", String(key === chosen));
-            });
-            markers.forEach((mark, key) => mark.setAttribute("aria-pressed", String(key === chosen)));
+        function paintSpotlight() {
+            const active = hovered ?? focused ?? chosen;
+            const page = String(active?.PAGE_NO || selector.value);
+            if (shownPage !== page) showPage(page);
+            viewer.querySelector(".is-spotlit")?.classList.remove("is-spotlit");
+            spotlight(mask, markers.get(active?.FIELD_KEY));
         }
 
-        function showPage() {
-            const page = available.get(selector.value);
-            const img = node("img"); img.src = page.IMAGE_URL;
-            img.alt = "Page " + page.PAGE_NO + " of the analyzed document";
-            img.width = Number(page.WIDTH_PX); img.height = Number(page.HEIGHT_PX);
-            viewer.replaceChildren(img); markers.clear();
-            fields.forEach((field, index) => {
+        function highlight(field) {
+            chosen = field;
+            selector.value = String(field.PAGE_NO);
+            links.forEach((item, key) => {
+                item.card.classList.toggle("is-selected", key === field.FIELD_KEY);
+                item.button?.setAttribute("aria-pressed", String(key === field.FIELD_KEY));
+            });
+            paintSpotlight();
+            markers.forEach((mark, key) => mark.setAttribute("aria-pressed", String(key === field.FIELD_KEY)));
+        }
+
+        function showPage(pageNo) {
+            shownPage = pageNo;
+            const page = available.get(pageNo);
+            renderEvidencePage(preview, viewer, page, mask);
+            markers.clear();
+            fields.forEach(({field, index}) => {
                 const box = boxFor(field.EVIDENCE_BOX);
-                if (!box || String(field.PAGE_NO) !== selector.value) return;
+                if (!box || String(field.PAGE_NO) !== pageNo) return;
                 const key = field.FIELD_KEY;
-                const mark = overlay(field, index, box, key === chosen, () => {
+                const mark = overlay(field, index, box, key === chosen?.FIELD_KEY, () => {
                     highlight(field); links.get(key).button.focus();
                 });
                 viewer.append(mark); markers.set(key, mark);
             });
         }
 
+        function previewRow(item, field) {
+            item.card.onpointerenter = event => {
+                if (event.pointerType !== "mouse") return;
+                hovered = field; paintSpotlight();
+            };
+            item.card.onpointerleave = () => { hovered = undefined; paintSpotlight(); };
+            item.button.onfocus = () => { focused = field; paintSpotlight(); };
+            item.button.onblur = () => { focused = undefined; paintSpotlight(); };
+        }
+
         function renderLayer() {
             const current = pageLayer(available.get(selector.value), layer.value, templateFields, lines);
-            fields = current.fields; chosen = undefined;
-            limit.textContent = current.summary;
-            results.previousElementSibling.textContent = current.title;
+            const showText = layer.value === "ocr";
+            filterControls.hidden = showText;
+            regionControls.hidden = !showText;
+            if (showText && regionsPage !== selector.value) {
+                regionFilter.value = "";
+                filterOptions(regionFilter, current.fields, "All text regions");
+                regionsPage = selector.value;
+            }
+            const name = showText ? regionFilter.value : filters.name.value;
+            const status = showText ? "" : filters.status.value;
+            fields = fieldRows(current.fields, name, status);
+            chosen = hovered = focused = shownPage = undefined;
+            resultsHeading(heading, current.title, current.count);
             links.clear(); results.replaceChildren();
-            fields.forEach((field, index) => {
+            fields.forEach(({field, index}) => {
                 const hasBox = boxFor(field.EVIDENCE_BOX) && available.has(String(field.PAGE_NO));
                 const item = evidenceCard(field, index, hasBox, () => {
-                    selector.value = String(field.PAGE_NO); highlight(field); showPage();
-                    markers.get(field.FIELD_KEY).focus();
+                    highlight(field);
+                    focusEvidenceMarker(preview, markers.get(field.FIELD_KEY));
                 });
+                if (item.button) previewRow(item, field);
                 links.set(field.FIELD_KEY, item); results.append(item.card);
             });
-            if (!fields.length) results.append(node("p", current.empty));
-            showPage();
+            if (!fields.length) results.append(node("p", name || status ? "No fields match these filters." : current.empty));
+            paintSpotlight();
         }
-        selector.onchange = layer.onchange = renderLayer;
+        selector.onchange = layer.onchange = filters.name.onchange = filters.status.onchange = regionFilter.onchange = renderLayer;
         renderLayer();
     }
 
+    function unlocatedFields(root, result) {
+        const results = root.querySelector(".inv-results");
+        const fields = result.fields || [];
+        resultsHeading(root.querySelector("#inv-campos"), "Extracted fields", fields.length ? fieldCount(fields) : null);
+        const filters = fieldFilters(root, fields);
+        filters.name.closest(".inv-field-controls").hidden = false;
+        root.querySelector(".inv-region-controls").hidden = true;
+        filters.name.onchange = filters.status.onchange = () => {
+            const {value: name} = filters.name, {value: status} = filters.status;
+            const rows = fieldRows(fields, name, status);
+            const empty = name || status ? "No fields match these filters." : result.tracking ?
+                "No fields were extracted." : "Run an extraction to see the template fields.";
+            results.replaceChildren(...(rows.length ?
+                rows.map(({field, index}) => evidenceCard(field, index, false).card) : [node("p", empty)]));
+        };
+        filters.name.onchange();
+    }
+
     function pdfResult(root, result, row) {
+        const heading = root.querySelector(".inv-template-heading");
+        heading.textContent = result.tracking ? row.TEMPLATE_NAME || "" : "";
+        heading.hidden = !heading.textContent;
         const titles = ["Received", row.STAGE === "OCR" ? "Optical recognition" : "Read PDF", "Extract fields", "Locate evidence", "Result"];
         const stages = {QUEUED:0, READ_PDF:1, OCR:1, EXTRACT_FIELDS:2, LOCATE_EVIDENCE:3, DONE:4};
         const step = row.STATE === "ERROR" ? 4 : (stages[row.STAGE] ?? 0);
         timeline(root.querySelector("ol"), titles, result.tracking ? step : -1, row.STATE);
+        const loading = Boolean(result.tracking) && !terminal.has(row.STATE);
+        const panel = root.querySelector(".inv-results").closest(".t-skel");
+        setSkeletonState(panel, loading ? "loading" : result.tracking ? "ready" : "idle");
+        if (loading) return;
         if (result.pages?.length && terminal.has(row.STATE)) {
-            evidence(root, result.pages, result.fields || [], result.preview, result.lines || []);
+            evidence(root, result.pages, result.fields || [], result.lines || []);
             return;
         }
-        report(root.querySelector(".inv-results"), ["Field", "Value", "Status", "Evidence"],
-            (result.fields || []).map(f => [f.LABEL || f.FIELD_KEY, f.NORMALIZED_TEXT ?? f.ORIGINAL_TEXT,
-                named(f.STATUS), [f.PAGE_NO && "Page " + f.PAGE_NO, f.METHOD && named(f.METHOD), f.EVIDENCE].filter(Boolean).join(", ") || "No location available"]),
-            result.tracking ? "Results will appear when extraction finishes." : "Run an extraction to see the template fields.");
+        unlocatedFields(root, result);
     }
 
     function zipResult(root, result, row) {
@@ -209,45 +381,179 @@ globalThis.InvoiceMonitor = (() => {
 
     function showPdf(root, location, url) {
         const frame = node("iframe");
-        frame.title = "Original PDF preview"; frame.src = url;
-        reviewControls(root, url);
+        frame.title = "Original PDF preview";
+        reviewControls(root);
+        waitForPreview(location, frame);
+        frame.src = url;
         location.replaceChildren(frame);
+    }
+
+    function encodePdfPart(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(",", 2)[1]);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    async function uploadPdf(file, version) {
+        const uploadId = crypto.randomUUID();
+        const partSize = 384 * 1024;
+        for (let offset = 0; offset < file.size; offset += partSize) {
+            const end = Math.min(offset + partSize, file.size);
+            const encoded = await encodePdfPart(file.slice(offset, end));
+            const response = await apex.server.process("PROBAR", {
+                x01: uploadId,
+                x02: String(offset / partSize),
+                x03: version,
+                x04: file.name,
+                x05: end === file.size ? "Y" : "N",
+                f01: apex.server.chunk(encoded)
+            }, {dataType: "json", timeout: 90000});
+            if (end === file.size || !response?.received) return response;
+        }
+    }
+
+    function pdfSubmission(root, setStatus, accepted, reset) {
+        const run = document.querySelector(".inv-pdf-run");
+        const label = run?.querySelector(".t-Button-label") ?? run;
+        const inputRegion = run?.closest(".inv-pdf-input");
+        const template = document.getElementById("P6_VERSION");
+        let state = "idle", file;
+
+        function syncRunButton() {
+            if (run) run.disabled = state !== "reviewing" && (state === "processing" || !template?.value || !file);
+        }
+
+        function setState(next) {
+            state = next;
+            inputRegion?.classList.toggle("is-processing", state === "processing");
+            inputRegion?.classList.toggle("is-reviewing", state === "reviewing");
+            if (label) label.textContent = state === "reviewing" ? "New execution" : "Run extraction";
+            syncRunButton();
+        }
+
+        function uploadFailed(message) {
+            setState("idle");
+            root.classList.remove("is-visible");
+            pdfResult(root, {}, {});
+            setStatus(message, true);
+        }
+
+        syncRunButton();
+        template?.addEventListener("change", syncRunButton);
+        run?.addEventListener("click", async () => {
+            if (run.disabled) return;
+            if (state === "reviewing") {
+                setState("idle");
+                reset();
+                template?.focus();
+                return;
+            }
+            setState("processing");
+            root.classList.add("is-visible");
+            pdfResult(root, {tracking: true}, {STAGE: "QUEUED", TEMPLATE_NAME: template.selectedOptions[0]?.text});
+            setStatus("Submitting PDF for extraction…");
+            let response;
+            try {
+                response = await uploadPdf(file, template.value);
+            } catch {
+                uploadFailed("The upload could not be confirmed. Reload the page to check its status before retrying.");
+                return;
+            }
+            if (!response?.tracking) {
+                uploadFailed(response?.message || "The PDF was not accepted. Choose a PDF file and try again.");
+                return;
+            }
+            accepted(response.tracking);
+        });
+        return {
+            setState,
+            setFile(selected) { file = selected; syncRunButton(); }
+        };
     }
 
     function pdfMonitor(root, setStatus) {
         const preview = root.querySelector(".inv-preview");
-        let objectUrl, previewId, selected = false;
+        let objectUrl, previewId, selectedFile, tracking, submission;
 
-        function fileChanged(event) {
-            if (!event.target.matches("#P6_FILE, #P6_FILE_CONTAINER input[type=file]")) return;
-            const file = event.target.files?.[0];
-            if (!file) return;
-            selected = true;
+        function releasePreview() {
             if (objectUrl) URL.revokeObjectURL(objectUrl);
-            if (file.size > 12 * 1024 * 1024 || !/\.pdf$/i.test(file.name)) {
-                reviewControls(root, null);
-                pdfResult(root, {}, {});
-                setStatus("Select a PDF file up to 12 MiB.");
-                preview.replaceChildren(node("p", "No preview available.")); return;
-            }
-            objectUrl = URL.createObjectURL(new Blob([file], {type:"application/pdf"}));
-            showPdf(root, preview, objectUrl); pdfResult(root, {}, {});
-            setStatus("Document selected. Choose Run extraction to start.");
+            objectUrl = previewId = null;
         }
 
-        document.addEventListener("change", fileChanged);
-        window.addEventListener("pagehide", () => { if (objectUrl) URL.revokeObjectURL(objectUrl); }, {once:true});
+        function clearPreview(message) {
+            reviewControls(root);
+            preview.replaceChildren(node("p", message));
+            setSkeletonState(preview.closest(".t-skel"), "idle");
+        }
+
+        function selectFile(file) {
+            if (file === selectedFile) return;
+            selectedFile = file;
+            tracking = null;
+            root.classList.remove("is-visible");
+            releasePreview();
+            submission.setFile(null);
+            pdfResult(root, {}, {});
+            if (!file) {
+                clearPreview("Select a PDF to preview it.");
+                return;
+            }
+            if (!file.size || file.size > 12 * 1024 * 1024 || !/\.pdf$/i.test(file.name)) {
+                clearPreview("No preview available.");
+                setStatus("Select a PDF file up to 12 MiB.", true);
+                return;
+            }
+            objectUrl = URL.createObjectURL(new Blob([file], {type:"application/pdf"}));
+            submission.setFile(file);
+            showPdf(root, preview, objectUrl);
+            setStatus("Ready to extract: " + file.name);
+        }
+
+        function reset() {
+            tracking = null;
+            root.classList.remove("is-visible");
+            releasePreview();
+            clearPreview("Select a PDF to preview it.");
+            pdfResult(root, {}, {});
+            setStatus("Choose a PDF and run extraction.");
+        }
+
+        function start(update) {
+            submission = pdfSubmission(root, setStatus, id => {
+                tracking = id;
+                selectedFile = null;
+                submission.setFile(null);
+                apex.item("P6_FILE").setValue("", null, true);
+                update();
+            }, reset);
+            document.addEventListener("change", event => {
+                if (event.target.matches("input[type=file]#P6_FILE, #P6_FILE_CONTAINER input[type=file]")) {
+                    selectFile(event.target.files?.[0]);
+                }
+            }, true);
+            window.addEventListener("pagehide", releasePreview, {once:true});
+            update();
+        }
+
         return {
-            start:update => update(),
-            paused:() => selected,
-            params:() => ({}),
+            start,
+            pollInterval: 1000,
+            paused:() => tracking === null || Boolean(selectedFile),
+            params:() => ({x01: tracking}),
             render(result, row) {
+                submission.setState(pdfFormStates[row.STATE] || "idle");
+                root.classList.toggle("is-visible", Boolean(result.tracking));
                 pdfResult(root, result, row);
                 const hasEvidence = result.pages?.length && terminal.has(row.STATE);
-                if (result.preview && !hasEvidence && previewId !== result.tracking) {
+                if (result.preview && !objectUrl && !hasEvidence && previewId !== result.tracking) {
                     previewId = result.tracking; showPdf(root, preview, result.preview);
                 }
-                return [row.FILENAME, row.STATE ? named(row.STATE) : "Queued", row.ERROR_CODE];
+                const issue = row.ERROR_CODE === "dispatch_failed" ?
+                    "The extraction service did not accept the PDF. Run extraction again." : row.ERROR_CODE;
+                return [row.FILENAME, row.STATE ? named(row.STATE) : "Queued", issue];
             }
         };
     }
@@ -282,6 +588,7 @@ globalThis.InvoiceMonitor = (() => {
         }
         return {
             render, refresh:search,
+            pollInterval: 4000,
             params:selection => ({x01:selection, x02:String(offset)}),
             lock(busy) { batches.disabled = busy; if (busy) prev.disabled = next.disabled = true; },
             start(update) {
@@ -298,27 +605,52 @@ globalThis.InvoiceMonitor = (() => {
     function start() {
         const root = document.getElementById("invoice-monitor");
         const status = root.querySelector(".inv-status");
-        const setStatus = text => { if (status.textContent !== text) status.textContent = text; };
-        const view = root.dataset.kind === "pdf" ? pdfMonitor(root, setStatus) : zipMonitor(root, setStatus);
+        function setStatus(text, error = false) {
+            status.classList.toggle("is-error", error);
+            if (status.textContent !== text) status.textContent = text;
+        }
+        const isPdf = root.dataset.kind === "pdf";
+        const view = isPdf ? pdfMonitor(root, setStatus) : zipMonitor(root, setStatus);
         const refresh = root.querySelector(".inv-refresh");
-        let timer;
+        let timer, busy = false, failures = 0, pendingPdfRefresh = false;
         async function update(selection) {
-            if (refresh.disabled || view.paused?.()) return;
-            refresh.disabled = true; view.lock?.(true); clearTimeout(timer);
+            if (view.paused?.()) return;
+            if (busy) {
+                pendingPdfRefresh = isPdf;
+                return;
+            }
+            busy = true;
+            if (refresh) refresh.disabled = true;
+            view.lock?.(true); clearTimeout(timer);
             try {
                 const result = await apex.server.process("ESTADO", view.params(selection), {dataType:"json"});
-                if (view.paused?.()) return;
+                if (view.paused?.() || pendingPdfRefresh) return;
                 const row = result.items?.[0] || {};
                 const details = view.render(result, row);
-                setStatus(result.tracking ? details.filter(Boolean).join(", ") : "No upload is selected for this session.");
-                if (result.tracking && !terminal.has(row.STATE)) timer = setTimeout(update, 4000);
+                failures = 0;
+                const empty = isPdf ? "Choose a PDF and run extraction." :
+                    "No upload is selected for this session.";
+                setStatus(result.tracking ? details.filter(Boolean).join(", ") : empty, row.STATE === "ERROR");
+                if (result.tracking && !terminal.has(row.STATE)) timer = setTimeout(update, view.pollInterval);
             } catch {
-                setStatus("Status could not be loaded. Choose Refresh status to try again.");
+                if (isPdf && ++failures <= 3) {
+                    setStatus("Status could not be loaded. Retrying…", true);
+                    timer = setTimeout(update, 4000);
+                } else {
+                    const action = isPdf ? "Reload the page" : "Choose Refresh status";
+                    setStatus("Status could not be loaded. " + action + " to try again.", true);
+                }
             } finally {
-                refresh.disabled = false; view.lock?.(false);
+                busy = false;
+                if (refresh) refresh.disabled = false;
+                view.lock?.(false);
+                if (pendingPdfRefresh) {
+                    pendingPdfRefresh = false;
+                    update();
+                }
             }
         }
-        refresh.addEventListener("click", () => { view.refresh?.(); update(); });
+        refresh?.addEventListener("click", () => { view.refresh?.(); update(); });
         window.addEventListener("pagehide", () => clearTimeout(timer), {once:true});
         view.start(update);
     }

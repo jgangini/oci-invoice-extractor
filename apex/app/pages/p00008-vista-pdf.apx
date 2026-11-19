@@ -9,21 +9,43 @@ page 8 (
         authorizationScheme: @review
         pageAccessProtection: argumentsMustHaveChecksum
     }
+    pageItem P8_TEST_ID (
+        type: hidden
+        layout {
+            sequence: 10
+            slot: body
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
     process archivo (
         name: Session file
         type: executeCode
         source {
             plsqlCode:
 ```plsql
-declare b blob; begin
-  select f.blob_content into b from apex_collections c join apex_application_temp_files f on f.name=c.c002
-  where c.collection_name='INV_UI_TEST' and f.application_id=:APP_ID and c.seq_id=1;
+declare b blob; temp_name_ varchar2(4000); begin
+  select blob001,c002 into b,temp_name_ from apex_collections
+  where collection_name='INV_UI_TEST' and seq_id=1 and c001=:P8_TEST_ID;
+  if b is null then
+    select blob_content into b from apex_application_temp_files
+    where name=temp_name_ and application_id=:APP_ID;
+  end if;
   owa_util.mime_header('application/pdf',false);
   htp.p('Cache-Control: private, no-store');
   htp.p('X-Content-Type-Options: nosniff');
   htp.p('Content-Disposition: inline; filename="documento.pdf"');
   htp.p('Content-Length: ' || dbms_lob.getlength(b));
   owa_util.http_header_close; wpg_docload.download_file(b);
+  apex_application.stop_apex_engine;
+exception when no_data_found then
+  owa_util.status_line(404,'Not Found',false);
+  htp.p('Cache-Control: private, no-store');
+  owa_util.http_header_close;
   apex_application.stop_apex_engine;
 end;
 ```

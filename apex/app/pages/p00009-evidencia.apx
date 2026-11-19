@@ -27,6 +27,26 @@ page 9 (
             region: @control
             slot: regionBody
         }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
+    )
+    pageItem P9_TEST_ID (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @control
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+        }
     )
     process archivo (
         name: Test page image
@@ -35,13 +55,18 @@ page 9 (
             plsqlCode:
 ```plsql
 declare id_ varchar2(80); b blob; begin
-  select c001 into id_ from apex_collections where collection_name='INV_UI_TEST' and seq_id=1;
-  b:=inv_data.inv_upload.test_page_content(id_,to_number(:P9_PAGE));
+  select c001 into id_ from apex_collections where collection_name='INV_UI_TEST' and seq_id=1 and c001=:P9_TEST_ID;
+  b:=inv_data.inv_upload.test_page_content(id_,to_number(:P9_PAGE default null on conversion error));
   owa_util.mime_header('image/jpeg',false);
   htp.p('Cache-Control: private, no-store');
   htp.p('X-Content-Type-Options: nosniff');
   htp.p('Content-Length: ' || dbms_lob.getlength(b));
   owa_util.http_header_close; wpg_docload.download_file(b);
+  apex_application.stop_apex_engine;
+exception when no_data_found then
+  owa_util.status_line(404,'Not Found',false);
+  htp.p('Cache-Control: private, no-store');
+  owa_util.http_header_close;
   apex_application.stop_apex_engine;
 end;
 ```

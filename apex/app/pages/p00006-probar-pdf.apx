@@ -1,7 +1,7 @@
 page 6 (
-    name: Test a PDF
+    name: Process Document
     alias: PROBAR-PDF
-    title: Test a PDF
+    title: Process Document
     appearance {
         pageTemplate: @/standard
     }
@@ -14,7 +14,7 @@ page 6 (
         executeWhenPageLoads: InvoiceMonitor.start();
     }
     region entrada (
-        name: Test document
+        name: Process Document
         type: staticContent
         layout {
             sequence: 10
@@ -22,6 +22,7 @@ page 6 (
         }
         appearance {
             template: @/standard
+            cssClasses: inv-pdf-input
         }
     )
     pageItem P6_VERSION (
@@ -35,7 +36,10 @@ page 6 (
             slot: regionBody
         }
         appearance {
-            template: @/optional-floating
+            template: @/required-floating
+        }
+        validation {
+            valueRequired: true
         }
         lov {
             type: sqlQuery
@@ -53,10 +57,14 @@ page 6 (
             slot: regionBody
         }
         appearance {
-            template: @/optional-floating
+            template: @/required-floating
+        }
+        validation {
+            valueRequired: true
         }
         display {
-            displayAs: blockDropzone
+            displayAs: inlineFileBrowse
+            dropzoneTitle: Upload File
         }
         storage {
             type: appTempFiles
@@ -69,13 +77,17 @@ page 6 (
         buttonName: PROBAR
         label: Run extraction
         layout {
-            sequence: 10
+            sequence: 30
             region: @entrada
-            slot: next
+            slot: edit
         }
         appearance {
             buttonTemplate: @/text
             hot: true
+            cssClasses: inv-pdf-run
+        }
+        behavior {
+            action: definedByDynamicAction
         }
     )
     region avances (
@@ -85,16 +97,51 @@ page 6 (
             htmlCode:
 ```html
 <div class="inv-console" id="invoice-monitor" data-kind="pdf">
+  <h2 class="inv-template-heading" hidden></h2>
   <ol class="inv-timeline" aria-label="Processing stages"></ol>
-  <p class="inv-status" role="status"></p>
+  <p class="inv-status inv-pdf-status" role="status"></p>
   <nav class="inv-pane-nav" aria-label="Review panels"><a href="#inv-documento">Go to document</a><a href="#inv-campos">Go to results</a></nav>
-  <div class="inv-page-controls" role="group" aria-label="Document review controls">
-    <label>Page<select class="inv-page-choice" disabled><option>Original PDF</option></select></label>
-    <label>Overlay<select class="inv-layer-choice" disabled><option>No overlay</option></select></label>
-    <button class="inv-open-original" type="button" disabled aria-label="Open original PDF in a new tab">Open original PDF</button>
+  <div class="inv-split">
+    <section>
+      <header class="inv-panel-header">
+        <h2 id="inv-documento" tabindex="-1">Document</h2>
+        <div class="inv-review-controls inv-page-controls" role="group" aria-label="Document review controls">
+          <label><span>Page</span><select class="inv-page-choice" disabled><option>Original PDF</option></select></label>
+          <label><span>Overlay</span><select class="inv-layer-choice" disabled><option>No overlay</option></select></label>
+        </div>
+      </header>
+      <div class="t-skel inv-document-loader" data-state="idle" aria-busy="false">
+        <div class="t-skel-skeleton is-pulsing" aria-hidden="true">
+          <div class="inv-document-placeholder"><span></span><span></span><span></span><span></span></div>
+        </div>
+        <div class="inv-preview t-skel-content"><p>Select a PDF to preview it.</p></div>
+      </div>
+    </section>
+    <section>
+      <header class="inv-panel-header">
+        <h2 id="inv-campos" tabindex="-1">Extracted fields</h2>
+        <div class="inv-review-controls inv-region-controls" hidden>
+          <label><span>Text region</span><select class="inv-region-filter"><option value="">All text regions</option></select></label>
+        </div>
+        <div class="inv-review-controls inv-field-controls">
+          <label><span>Field</span><select class="inv-field-name" disabled><option value="">All fields</option></select></label>
+          <label><span>Field status</span><select class="inv-field-filter" disabled>
+            <option value="">All statuses</option>
+            <option value="found">Found</option>
+            <option value="absent">Missing</option>
+            <option value="ambiguous">Ambiguous</option>
+            <option value="invalid">Invalid</option>
+          </select></label>
+        </div>
+      </header>
+      <div class="t-skel" data-state="idle" aria-busy="false">
+        <div class="t-skel-skeleton is-pulsing" aria-hidden="true">
+          <div></div><div></div><div></div><div></div><div></div>
+        </div>
+        <div class="inv-results t-skel-content" role="region" aria-labelledby="inv-campos" tabindex="0"></div>
+      </div>
+    </section>
   </div>
-  <div class="inv-split"><section><h2 id="inv-documento" tabindex="-1">Document</h2><div class="inv-preview"><p>Select a PDF to preview it.</p></div></section><section><h2 id="inv-campos" tabindex="-1">Extracted fields</h2><div class="inv-results"></div></section></div>
-  <button type="button" class="inv-refresh">Refresh status</button>
 </div>
 ```
         }
@@ -104,28 +151,117 @@ page 6 (
         }
         appearance {
             template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+            ]
+            cssClasses: inv-pdf-review
         }
     )
     process probar (
-        name: Run test
+        name: PROBAR
         type: executeCode
         source {
             plsqlCode:
 ```plsql
-declare b blob; filename_ varchar2(512); id_ varchar2(1024); begin
-  select blob_content,filename into b,filename_ from apex_application_temp_files where application_id=:APP_ID and name=:P6_FILE;
-  inv_data.inv_upload.test_pdf(:P6_VERSION,filename_,b,id_);
+declare
+  staging_ constant varchar2(30) := 'INV_UI_TEST_UPLOAD';
+  part_bytes_ constant pls_integer := 384 * 1024;
+  upload_id_ varchar2(32767) := apex_application.g_x01;
+  part_ number := to_number(apex_application.g_x02 default null on conversion error);
+  last_ varchar2(32767) := apex_application.g_x05;
+  filename_ varchar2(32767) := apex_application.g_x04;
+  payload_ clob;
+  piece_ blob;
+  b blob;
+  id_ varchar2(32);
+  version_ number;
+  previous_ pls_integer;
+  fragment_ varchar2(32767);
+
+  procedure reject_upload(message_ varchar2) is
+  begin
+    apex_json.open_object;
+    apex_json.write('message',message_);
+    apex_json.close_object;
+  end;
+begin
+  if not regexp_like(nvl(upload_id_,'!'),'^[0-9a-f-]{36}$') or part_ is null
+     or part_ != trunc(part_) or part_ not between 0 and 31 or nvl(last_,'!') not in ('Y','N') then
+    reject_upload('The upload sequence is invalid. Run extraction again.');
+    return;
+  end if;
+  begin
+    select version_id into version_ from inv_data.inv_v_test_templates
+    where version_id=to_number(apex_application.g_x03 default null on conversion error);
+  exception when no_data_found then
+    reject_upload('Choose an available extraction template.');
+    return;
+  end;
+  if not regexp_like(nvl(filename_,'!'),'\.pdf$','i') or length(filename_) > 512
+     or apex_application.g_f01.count not between 1 and 66 then
+    reject_upload('Choose a PDF file up to 12 MiB.');
+    return;
+  end if;
+
+  dbms_lob.createtemporary(payload_, true, dbms_lob.call);
+  for i in 1..apex_application.g_f01.count loop
+    fragment_ := apex_application.g_f01(i);
+    if fragment_ is null or dbms_lob.getlength(payload_) + length(fragment_) > 4 * part_bytes_ / 3 then
+      reject_upload('This part of the PDF exceeds the upload limit.');
+      return;
+    end if;
+    dbms_lob.writeappend(payload_,length(fragment_),fragment_);
+  end loop;
+  begin
+    piece_ := apex_web_service.clobbase642blob(payload_);
+  exception when others then
+    reject_upload('This part of the PDF could not be decoded. Run extraction again.');
+    return;
+  end;
+  if nvl(dbms_lob.getlength(piece_),0) not between 1 and part_bytes_
+     or (last_='N' and (part_=31 or dbms_lob.getlength(piece_)!=part_bytes_)) then
+    reject_upload('This part of the PDF has an invalid size.');
+    return;
+  end if;
+
+  if part_=0 then
+    apex_collection.create_or_truncate_collection(staging_);
+  else
+    select count(*) into previous_ from apex_collections
+    where collection_name=staging_ and c001=upload_id_;
+    if previous_!=part_ then
+      reject_upload('The upload was interrupted. Run extraction again.');
+      return;
+    end if;
+  end if;
+
+  if last_='N' then
+    apex_collection.add_member(p_collection_name=>staging_,p_c001=>upload_id_,p_blob001=>piece_);
+    apex_json.open_object;
+    apex_json.write('received',true);
+    apex_json.close_object;
+    return;
+  end if;
+
+  dbms_lob.createtemporary(b,true,dbms_lob.call);
+  for piece in (select blob001 from apex_collections where collection_name=staging_ and c001=upload_id_ order by seq_id) loop
+    dbms_lob.append(b,piece.blob001);
+  end loop;
+  dbms_lob.append(b,piece_);
+  inv_data.inv_upload.test_pdf(version_,filename_,b,id_);
   apex_collection.create_or_truncate_collection('INV_UI_TEST');
-  apex_collection.add_member(p_collection_name=>'INV_UI_TEST',p_c001=>id_,p_c002=>:P6_FILE,p_c003=>filename_);
+  apex_collection.add_member(p_collection_name=>'INV_UI_TEST',p_c001=>id_,p_c003=>filename_,p_blob001=>b);
+  apex_collection.delete_collection(staging_);
+  apex_json.open_object;
+  apex_json.write('tracking',id_);
+  apex_json.close_object;
 end;
 ```
         }
         execution {
             sequence: 10
-            point: processing
-        }
-        serverSideCondition {
-            whenButtonPressed: @probar
+            point: ajaxCallback
         }
     )
     process estado (
@@ -135,15 +271,19 @@ end;
             plsqlCode:
 ```plsql
 declare t sys_refcursor; f sys_refcursor; p sys_refcursor; l sys_refcursor; id_ varchar2(80); begin
- select max(c001) into id_ from apex_collections where collection_name='INV_UI_TEST';
+ select max(c001) into id_ from apex_collections where collection_name='INV_UI_TEST'
+   and (apex_application.g_x01 is null or c001=apex_application.g_x01);
  apex_json.open_object; apex_json.write('tracking',id_);
  if id_ is not null then
-  open t for select filename,state,stage,error_code from inv_data.inv_v_tests where test_id=id_;
+  open t for select t.filename,t.state,t.stage,t.error_code,v.name || ' v' || v.version_no template_name
+    from inv_data.inv_v_tests t join inv_data.inv_v_test_templates v on v.version_id=t.version_id where t.test_id=id_;
   open f for select label,field_key,status,original_text,normalized_text,page_no,method,evidence,evidence_box,anchor_text from inv_data.inv_v_test_fields where test_id=id_ order by field_key;
-  open p for select page_no,width_px,height_px,method,fragment_total,fragment_shown,fragment_truncated,apex_page.get_url(p_page=>9,p_items=>'P9_PAGE',p_values=>to_char(page_no)) image_url from inv_data.inv_v_test_pages where test_id=id_ order by page_no;
+  open p for select page_no,width_px,height_px,method,fragment_total,fragment_shown,fragment_truncated,
+    apex_page.get_url(p_page=>9,p_items=>'P9_TEST_ID,P9_PAGE',p_values=>id_||','||to_char(page_no)) image_url
+    from inv_data.inv_v_test_pages where test_id=id_ order by page_no;
   open l for select page_no,fragment_no,text_value,evidence_box,text_truncated,method from inv_data.inv_v_test_fragments where test_id=id_ order by page_no,fragment_no;
   apex_json.write('items',t); apex_json.write('fields',f); apex_json.write('pages',p); apex_json.write('lines',l);
-  apex_json.write('preview',apex_page.get_url(p_page=>8,p_clear_cache=>'8'));
+  apex_json.write('preview',apex_page.get_url(p_page=>8,p_items=>'P8_TEST_ID',p_values=>id_));
  end if;
  apex_json.close_object;
 end;
@@ -154,5 +294,4 @@ end;
             point: ajaxCallback
         }
     )
-
 )

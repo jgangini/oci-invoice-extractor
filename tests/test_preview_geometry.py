@@ -7,7 +7,7 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.generic import DecodedStreamObject, NameObject, RectangleObject
 
 from extractor.geometry import ocr_lines, preview_pages
-from extractor.worker import _preview
+from extractor.worker import _extract_document
 from scripts.sample_zip import sample_pdf
 
 
@@ -28,7 +28,7 @@ def rotated_pdf():
 class GeometryTests(unittest.TestCase):
     def test_two_page_native_geometry_tracks_visible_crop_and_rotation(self):
         channel = Mock()
-        fields, pages = _preview(rotated_pdf(), {"fields":[
+        fields, pages = _extract_document(rotated_pdf(), {"fields":[
             {"key":"first","type":"string","labels":["Factura No."]},
             {"key":"second","type":"string","labels":["Paciente"]},
         ]}, channel)
@@ -56,7 +56,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_real_ocr_persists_unmapped_lines_and_matches_image(self):
         channel = Mock()
-        fields, pages = _preview(sample_pdf(scan=True), {
+        fields, pages = _extract_document(sample_pdf(scan=True), {
             "fields":[{"key":"number","type":"string","labels":["Factura No."]}]}, channel)
         number, width, height, _, method, total, fragments = pages[0]
         self.assertEqual((number,method,fields[0]["method"]),(1,"ocr","ocr"))
@@ -67,6 +67,42 @@ class GeometryTests(unittest.TestCase):
         self.assertLess(match["box"][1], .2)
         self.assertGreater(width, height)
         self.assertEqual([x.args[0][1] for x in channel.send.call_args_list], ["OCR","EXTRACT_FIELDS","LOCATE_EVIDENCE"])
+
+    def test_raster_layout_is_shared_by_batch_and_preview(self):
+        def recognize(_data, _page, capture):
+            cells = [
+                ("MED-1EST-R053", 65, 3, 79), ("FACTURA DE SERVICIOS MEDICOS", 7, 4, 55),
+                ("DOCUMENTO FICTICIO", 7, 7, 28),
+                ("PRESTADOR FICTICIO", 7, 10, 26), ("PAGADOR FICTICIO", 56, 11, 77),
+                ("NIT. ficticio 901.999.999-X", 7, 14, 28), ("NIT 888.777.666-5", 56, 14, 76),
+                ("NIT 123.456.789-1", 39, 18, 51),
+                ("Código", 7, 24, 12), ("Servicio", 16, 24, 24), ("Cant,", 56, 25, 62),
+                ("Unitario", 64, 25, 71), ("Total", 80, 25, 86),
+                ("090200", 7, 30, 12), ("Glucosa en suero", 16, 30, 32),
+                ("1", 56, 31, 57), ("$44.000", 64, 31, 72),
+                ("B90201", 7, 35, 12), ("Radiografía de tórax", 16, 35, 36), ("$60.000", 80, 36, 87),
+                ("TOTAL$104.000", 70, 41, 87), ("NIT 222.333.444-5", 7, 80, 28),
+            ]
+            capture([([[x, y], [right, y], [right, y + 3], [x, y + 3]], text, .9)
+                     for text, x, y, right in cells], 100, 100)
+            return "\n".join(text for text, *_ in cells)
+
+        template = {"fields": [
+            {"key": "issuer", "type": "string", "labels": ["NIT del prestador"]},
+            {"key": "recipient", "type": "string", "labels": ["NIT del adquirente"]},
+            {"key": "services", "type": "string", "labels": ["Descripción de servicios"]},
+            {"key": "total", "type": "currency", "labels": ["TOTAL:"]},
+            {"key": "number", "type": "string", "labels": ["Factura de servicios medicos"]},
+        ]}
+        with patch("extractor.worker.recognize", side_effect=recognize):
+            batch = _extract_document(sample_pdf(scan=True), template)
+            preview, _ = _extract_document(sample_pdf(scan=True), template, Mock())
+        expected = ["901.999.999-X", "888.777.666-5", "Glucosa en suero; Radiografía de tórax", "104000",
+                    "MED-1EST-R053"]
+        self.assertEqual([row["normalized"] for row in batch], expected)
+        self.assertEqual([row["normalized"] for row in preview], expected)
+        self.assertEqual(preview[2]["box"], [.16, .30, .36, .38])
+        self.assertEqual(preview[3]["anchor_text"], "TOTAL$104.000")
 
     def test_truncated_ocr_never_invents_unique_match(self):
         lines = [([[1,1],[8,1],[8,4],[1,4]],"XYZ",.9)] * 1001

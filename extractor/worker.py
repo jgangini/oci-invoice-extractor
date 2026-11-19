@@ -12,13 +12,13 @@ class DocumentError(Exception):
     """A permanent document error, safe to record without its contents."""
 
 
-def _preview(data, template, channel):
+def _extract_document(data, template, channel=None):
     contacted_ocr = False
     geometry = {}
 
     def ocr(content, index):
         nonlocal contacted_ocr
-        if not contacted_ocr:
+        if channel is not None and not contacted_ocr:
             channel.send(("stage", "OCR"))
             contacted_ocr = True
         def capture(lines, width, height):
@@ -27,9 +27,12 @@ def _preview(data, template, channel):
 
     def pages():
         yield from page_texts(data, ocr=ocr)
-        channel.send(("stage", "EXTRACT_FIELDS"))
+        if channel is not None:
+            channel.send(("stage", "EXTRACT_FIELDS"))
 
-    fields = extract(pages(), template)
+    fields = extract(pages(), template, geometry)
+    if channel is None:
+        return fields
     channel.send(("stage", "LOCATE_EVIDENCE"))
     return fields, preview_pages(data, fields, geometry)
 
@@ -44,7 +47,7 @@ def _serve(channel):
                 return
             data, template, track = request
             try:
-                result = _preview(data, template, channel) if track else extract(page_texts(data), template)
+                result = _extract_document(data, template, channel if track else None)
                 channel.send((True, result))
             except InputError as exc:
                 channel.send((False, str(exc)))

@@ -29,10 +29,12 @@ def ocr_lines(lines, width, height):
 
 
 def _ocr_match(lines, field):
-    pattern = re.compile(r"(?<!\w)" + re.escape(field["original"]) + r"(?!\w)")
-    matches = [(s, box) for s, box in lines if box and pattern.search(s)]
-    evidence = [item for item in matches if item[0] == field.get("evidence")]
-    matches = evidence or matches
+    value = field["original"]
+    evidence = field.get("evidence", "")
+    pattern = re.compile(r"(?<!\w)" + re.escape(value) + r"(?!\w)")
+    matches = [(s, box) for s, box in lines if box and s == evidence and value in s]
+    if not matches:
+        matches = [(s, box) for s, box in lines if box and pattern.search(s)]
     return (matches[0][0][:250], matches[0][1]) if len(matches) == 1 else None
 
 
@@ -108,7 +110,7 @@ def _render(page, number, fields, ocr_page, limit):
             # Truncated OCR candidates cannot prove a unique field match.
             candidates = lines if total == len(lines) else []
             for field in fields:
-                if field.get("page") != number or not field.get("original"):
+                if field.get("page") != number or not field.get("original") or field.get("box"):
                     continue
                 try:
                     match = _ocr_match(candidates, field) if field["method"] == "ocr" else _native_match(text, bitmap, page, field)

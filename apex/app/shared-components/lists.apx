@@ -78,7 +78,7 @@ list navigation-menu (
     )
 
     entry probar-pdf (
-        label: Test a PDF
+        label: Process Document
         icon {
             imageIconCssClasses: fa-file-pdf-o
         }

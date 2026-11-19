@@ -4,6 +4,12 @@ import re
 import unicodedata
 from decimal import Decimal, InvalidOperation
 
+from .ocr_layout import INVOICE_TITLE, layout_candidates
+
+AMOUNT = r"\d+(?:\.\d{3})*(?:,\d{1,2})?"
+OCR_TOTAL = re.compile(rf"TOTAL\s*((?:COP|USD|\$)\s*{AMOUNT})", re.I)
+OCR_TOTAL_DAMAGED = re.compile(r"TOTA[L1]\s*S\s*(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?)", re.I)
+
 
 def fold(value):
     return "".join(c for c in unicodedata.normalize("NFD", value.casefold())
@@ -22,7 +28,7 @@ def normalize(kind, value):
                 continue
         raise ValueError("invalid_date")
     if kind == "currency":
-        match = re.fullmatch(r"\s*(COP|USD|\$)?\s*(\d+(?:\.\d{3})*(?:,\d{1,2})?)\s*", value, re.I)
+        match = re.fullmatch(rf"\s*(COP|USD|\$)?\s*({AMOUNT})\s*", value, re.I)
         if not match:
             raise ValueError("invalid_amount")
         digits = match[2].split(",")[0].replace(".", "").lstrip("0")
@@ -67,11 +73,20 @@ def label_key(value, method):
 def candidates(pages, field):
     labels = {fold(s) for s in field["labels"]}
     for number, method, cells, structured in pages:
-        for label, value, evidence in structured:
+        for label, value, evidence, box in structured:
             if label in labels and len(value) <= 2000:
-                yield value, number, method, evidence[:250]
+                yield value, number, method, evidence[:250], box
         keys = {label_key(s, method) for s in field["labels"]}
         for idx, (line, key, prefix, inline) in enumerate(cells):
+            if method == "ocr" and key == label_key(INVOICE_TITLE, method):
+                continue
+            if method == "ocr" and field["type"] == "currency" and keys & {"total", "total:"}:
+                total = OCR_TOTAL.fullmatch(line) or OCR_TOTAL_DAMAGED.fullmatch(line)
+                if total:
+                    yield total[1], number, method, line[:250], None
+                    continue
+                if key == "total":
+                    continue
             if key in keys or (key.endswith(":") and key[:-1].strip() in keys):
                 if idx + 1 >= len(cells):
                     continue
@@ -83,10 +98,10 @@ def candidates(pages, field):
             else:
                 continue
             if value and len(value) <= 2000:
-                yield value, number, method, line[:250]
+                yield value, number, method, line[:250], None
 
 
-def page_lines(number, method, text):
+def page_lines(number, method, text, ocr_page=None):
     rows = [[cell.strip() for cell in row.split("\t") if cell.strip()]
             for row in text.splitlines() if row.strip()]
     cells = []
@@ -95,22 +110,28 @@ def page_lines(number, method, text):
             parts = re.split(r"\s*[:#=]\s*", cell, maxsplit=1)
             prefix, value = (label_key(parts[0], method), parts[1]) if len(parts) == 2 else ("", "")
             cells.append((cell, label_key(cell, method), prefix, value))
-    return number, method, cells, list(table_candidates(rows))
+    structured = [(label, value, evidence, None) for label, value, evidence in table_candidates(rows)]
+    if ocr_page is not None:
+        structured.extend(layout_candidates(ocr_page, fold))
+    return number, method, cells, structured
 
 
-def extract(pages, template):
-    lines = [page_lines(n, method, text) for n, method, text in pages]
+def extract(pages, template, ocr_pages=None):
+    lines = [page_lines(n, method, text, ocr_pages.get(n) if ocr_pages is not None else None)
+             for n, method, text in pages]
     results = []
     for field in template["fields"]:
         found = {}
-        for value, number, method, evidence in candidates(lines, field):
-            found.setdefault(value, (number, method, evidence))
+        for value, number, method, evidence, box in candidates(lines, field):
+            found.setdefault(value, (number, method, evidence, box))
         result = {"key": field["key"], "status": "absent"}
         if len(found) > 1:
             result["status"] = "ambiguous"
         elif found:
-            value, (number, method, evidence) = next(iter(found.items()))
+            value, (number, method, evidence, box) = next(iter(found.items()))
             result.update(original=value, page=number, method=method, evidence=evidence)
+            if box:
+                result.update(anchor_text=evidence, box=box)
             try:
                 result["normalized"] = normalize(field.get("format", field["type"]), value)
                 result["status"] = "found"
