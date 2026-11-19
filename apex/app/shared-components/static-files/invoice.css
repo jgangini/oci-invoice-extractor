@@ -154,9 +154,8 @@ html, body {overflow-x: clip;}
 .inv-field-status[data-status="found"] {background: var(--inv-green-soft); color: var(--inv-green-hover);}
 .inv-match h3 button, .inv-match h3 button:not(:disabled):hover {min-height: 0; padding: 0; border: 0; color: var(--ink); background: transparent; font: inherit; text-align: start; text-decoration: none;}
 .inv-match h3 button::after {content: ""; position: absolute; inset: 0;}
-.inv-match > strong {display: block; color: var(--inv-ink); font-weight: 650; font-size: 1.04rem;}
+.inv-match > strong {display: block; color: #000; font-weight: 400; font-size: .9rem;}
 .inv-match small {display: block; color: var(--inv-secondary); margin-top: .2rem;}
-.inv-match p {margin: .32rem 0 0; font-size: .9rem; color: var(--inv-muted);}
 .inv-match:has(button):is(:hover, :focus-within), .inv-match.is-selected {background: color-mix(in srgb, var(--ink) 9%, var(--inv-surface));}
 .inv-match.is-selected {box-shadow: inset 0 0 0 1px var(--ink);}
 .inv-results {min-width: 0; overflow-x: auto; margin-block: .6rem;}
@@ -202,7 +201,7 @@ html, body {overflow-x: clip;}
 .t-skel[data-state="loading"] > .t-skel-content {opacity: 0; filter: blur(var(--reveal-blur)); transition: none;}
 .t-skel[data-state="loading"] > .is-pulsing > * {animation: t-skel-pulse var(--pulse-dur) ease-in-out infinite alternate;}
 .inv-document-loader {--inv-document-height: clamp(24rem, 63vh, 52rem);}
-.inv-document-loader[data-state="loading"] {min-block-size: var(--inv-document-height);}
+.inv-split .inv-document-loader[data-state="loading"] {min-block-size: var(--inv-document-height);}
 .inv-document-loader .t-skel-skeleton {background: var(--inv-surface);}
 .t-skel-skeleton > .inv-document-placeholder {
   box-sizing: border-box;
@@ -249,7 +248,6 @@ html, body {overflow-x: clip;}
   .inv-split > section + section {border-inline-start: 0; border-top: 1px solid var(--inv-line);}
   .t-skel[data-state="loading"] {min-block-size: 20rem;}
   .inv-document-loader {--inv-document-height: 46vh;}
-  .inv-document-loader[data-state="loading"] {min-block-size: var(--inv-document-height);}
 }
 @media (max-width: 38rem) {
   .inv-grid {grid-template-columns: 1fr;}

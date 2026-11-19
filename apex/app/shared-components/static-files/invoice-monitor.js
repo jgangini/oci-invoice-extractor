@@ -114,8 +114,6 @@ globalThis.InvoiceMonitor = (() => {
         if (value != null && value !== "") card.append(node("strong", value));
         const source = [field.METHOD && named(field.METHOD), field.PAGE_NO && "Page " + field.PAGE_NO].filter(Boolean).join(", ");
         if (source) card.append(node("small", source));
-        const anchor = field.ANCHOR_TEXT || field.EVIDENCE;
-        if (anchor && anchor !== value) card.append(node("p", anchor));
         return {card, button:hasBox ? title : null};
     }
 
@@ -352,10 +350,24 @@ globalThis.InvoiceMonitor = (() => {
         const loading = Boolean(result.tracking) && !terminal.has(row.STATE);
         const panel = root.querySelector(".inv-results").closest(".t-skel");
         setSkeletonState(panel, loading ? "loading" : result.tracking ? "ready" : "idle");
-        if (loading) return;
-        if (result.pages?.length && terminal.has(row.STATE)) {
+        const preview = root.querySelector(".inv-preview");
+        const previewPanel = preview.closest(".t-skel");
+        if (loading) {
+            setSkeletonState(previewPanel, "loading");
+            return;
+        }
+        if (result.tracking && row.STATE !== "ERROR" && result.pages?.length) {
             evidence(root, result.pages, result.fields || [], result.lines || []);
             return;
+        }
+        if (result.tracking && row.STATE !== "ERROR" && result.preview) {
+            showPdf(root, preview, result.preview);
+        } else if (result.tracking) {
+            reviewControls(root);
+            preview.replaceChildren(node("p", "No preview available."));
+            setSkeletonState(previewPanel, "ready");
+        } else {
+            setSkeletonState(previewPanel, "idle");
         }
         unlocatedFields(root, result);
     }
@@ -476,12 +488,7 @@ globalThis.InvoiceMonitor = (() => {
 
     function pdfMonitor(root, setStatus) {
         const preview = root.querySelector(".inv-preview");
-        let objectUrl, previewId, selectedFile, tracking, submission;
-
-        function releasePreview() {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
-            objectUrl = previewId = null;
-        }
+        let selectedFile, tracking, submission;
 
         function clearPreview(message) {
             reviewControls(root);
@@ -494,7 +501,6 @@ globalThis.InvoiceMonitor = (() => {
             selectedFile = file;
             tracking = null;
             root.classList.remove("is-visible");
-            releasePreview();
             submission.setFile(null);
             pdfResult(root, {}, {});
             if (!file) {
@@ -506,16 +512,13 @@ globalThis.InvoiceMonitor = (() => {
                 setStatus("Select a PDF file up to 12 MiB.", true);
                 return;
             }
-            objectUrl = URL.createObjectURL(new Blob([file], {type:"application/pdf"}));
             submission.setFile(file);
-            showPdf(root, preview, objectUrl);
             setStatus("Ready to extract: " + file.name);
         }
 
         function reset() {
             tracking = null;
             root.classList.remove("is-visible");
-            releasePreview();
             clearPreview("Select a PDF to preview it.");
             pdfResult(root, {}, {});
             setStatus("Choose a PDF and run extraction.");
@@ -534,7 +537,6 @@ globalThis.InvoiceMonitor = (() => {
                     selectFile(event.target.files?.[0]);
                 }
             }, true);
-            window.addEventListener("pagehide", releasePreview, {once:true});
             update();
         }
 
@@ -547,10 +549,6 @@ globalThis.InvoiceMonitor = (() => {
                 submission.setState(pdfFormStates[row.STATE] || "idle");
                 root.classList.toggle("is-visible", Boolean(result.tracking));
                 pdfResult(root, result, row);
-                const hasEvidence = result.pages?.length && terminal.has(row.STATE);
-                if (result.preview && !objectUrl && !hasEvidence && previewId !== result.tracking) {
-                    previewId = result.tracking; showPdf(root, preview, result.preview);
-                }
                 const issue = row.ERROR_CODE === "dispatch_failed" ?
                     "The extraction service did not accept the PDF. Run extraction again." : row.ERROR_CODE;
                 return [row.FILENAME, row.STATE ? named(row.STATE) : "Queued", issue];

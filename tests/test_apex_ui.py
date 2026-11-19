@@ -71,13 +71,26 @@ class ApexControlsTest(unittest.TestCase):
         harness = """
         const data = {tracking:"fixture", preview:"#original", items:[{STATE:"DONE",STAGE:"DONE",TEMPLATE_NAME:"Invoice Catalog v3"}],
           pages:[{PAGE_NO:1,WIDTH_PX:1200,HEIGHT_PX:900,IMAGE_URL:"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",METHOD:"native",FRAGMENT_TOTAL:2,FRAGMENT_SHOWN:2}],
-          fields:[{FIELD_KEY:"invoice",LABEL:"Factura",STATUS:"found",NORMALIZED_TEXT:"DEMO",EVIDENCE:"DEMO",PAGE_NO:1,EVIDENCE_BOX:[.2,.3,.5,.4]},
+          fields:[{FIELD_KEY:"invoice",LABEL:"Factura",STATUS:"found",NORMALIZED_TEXT:"DEMO",ANCHOR_TEXT:"Raw OCR excerpt",PAGE_NO:1,EVIDENCE_BOX:[.2,.3,.5,.4]},
                   {FIELD_KEY:"missing",LABEL:"Issue date",STATUS:"absent"}],
           lines:[{PAGE_NO:1,FRAGMENT_NO:1,TEXT_VALUE:"Otro texto",EVIDENCE_BOX:"[0.1,0.5,0.2,0.6]"},
                  {PAGE_NO:1,FRAGMENT_NO:2,TEXT_VALUE:"Otra región",EVIDENCE_BOX:"[0.3,0.5,0.4,0.6]"}]};
         for(let i=0;i<30;i++) data.fields.push({FIELD_KEY:"fixture-"+i,LABEL:"Field "+i,NORMALIZED_TEXT:"Value"});
         let notifyUpload, uploadCount=0, tracked;
         const awaitUpload=()=>new Promise(resolve=>{notifyUpload=resolve;});
+        // Chromium's virtual-time budget can expire while a native FileReader task is pending.
+        window.FileReader=class {
+          readAsDataURL(blob) {
+            const url=URL.createObjectURL(blob);
+            try {
+              const request=new XMLHttpRequest();
+              request.open("GET",url,false);
+              request.send();
+              this.result="data:application/pdf;base64,"+btoa(request.responseText);
+              this.onload();
+            } finally { URL.revokeObjectURL(url); }
+          }
+        };
         window.apex={
           server:{chunk:text=>text.match(/.{1,8000}/g),process:(name,args,options)=>{
             if(name==="PROBAR") {
@@ -129,7 +142,11 @@ class ApexControlsTest(unittest.TestCase):
             if(getComputedStyle(missing).backgroundColor==="rgba(0, 0, 0, 0)" ||
                getComputedStyle(missing).backgroundColor===getComputedStyle(found).backgroundColor) throw Error("missing row has its own fill");
             if(missingTag.getBoundingClientRect().left<=missing.querySelector("h3").getBoundingClientRect().right) throw Error("status aligned to the right");
-            if(missing.querySelector("strong, small, p") || found.querySelector("p")) throw Error("redundant field text");
+            if(missing.querySelector("strong, small, p") || found.querySelector("p") || found.textContent.includes("Raw OCR excerpt"))
+              throw Error("redundant field text");
+            const valueStyle=getComputedStyle(found.querySelector("strong"));
+            if(Math.abs(parseFloat(valueStyle.fontSize) - parseFloat(rem)*.9)>.01 ||
+               valueStyle.fontWeight!=="400" || valueStyle.color!=="rgb(0, 0, 0)") throw Error("plain black field values");
             if(Math.abs(page.width-panel.width)>1 || Math.abs(page.bottom-panel.bottom)>1) throw Error("full-bleed document");
             if(getComputedStyle(image.parentElement).boxShadow!=="none") throw Error("document shadow");
             if(Math.abs(resultsPanel.height-panel.height)>1 || resultsArea.scrollHeight<=resultsArea.clientHeight) throw Error("results contained by document height");
@@ -194,13 +211,9 @@ class ApexControlsTest(unittest.TestCase):
             pickTemplate("");
             const upload=new DataTransfer(); upload.items.add(new File(["%PDF-1.4"],"synthetic.pdf",{type:"application/pdf"}));
             file.files=upload.files; file.dispatchEvent(new Event("change"));
-            const frame=document.querySelector(".inv-preview iframe");
-            if(!frame?.src.startsWith("blob:") || !layer.disabled ||
+            const preview=documentLoader.querySelector(".inv-preview");
+            if(preview.querySelector("iframe, img") || !layer.disabled ||
                getComputedStyle(spread).display!=="none") throw Error("preview stays hidden until submit");
-            if(documentLoader.dataset.state!=="loading" || documentLoader.getAttribute("aria-busy")!=="true" || !frame.parentElement.inert)
-              throw Error("document skeleton replaces the pending preview");
-            frame.dispatchEvent(new Event("load"));
-            if(documentLoader.dataset.state!=="ready" || frame.parentElement.inert) throw Error("preview load completes the reveal");
             if(!status.textContent.includes("Ready to extract: synthetic.pdf")) throw Error("selection feedback");
             run.click();
             if(!run.disabled || getComputedStyle(spread).display!=="none") throw Error("a PDF without a template cannot open review");
@@ -227,6 +240,8 @@ class ApexControlsTest(unittest.TestCase):
                 if(first.args.pageItems || first.args.x03!=="1" || first.args.x04!=="synthetic.pdf" ||
                    atob(first.args.f01.join(""))!=="%PDF-1.4" || !(first.options.timeout>0)) throw Error("Ajax upload sends file bytes without setting session state");
                 if(resultsArea.closest(".t-skel").dataset.state!=="loading" || !resultsArea.inert) throw Error("upload shows the placeholder");
+                if(documentLoader.dataset.state!=="loading" || !preview.inert || preview.querySelector("iframe, img"))
+                  throw Error("document remains concealed while the upload is pending");
                 if(!status.textContent.includes("Submitting PDF") || getComputedStyle(spread).display==="none" ||
                    document.querySelector('[aria-current="step"]').textContent!=="ReceivedIn progress") throw Error("submit immediately opens the live timeline");
                 if(templateTitle.hidden || templateTitle.textContent!=="Catalog") throw Error("the chosen template appears during upload");
@@ -281,7 +296,7 @@ class ApexControlsTest(unittest.TestCase):
     def test_pdf_tracks_live_stages_and_resets_when_starting_a_new_execution(self):
         harness = """
         let row={STATE:"QUEUED", STAGE:"QUEUED"}, fields=[], nextPoll;
-        window.apex={server:{process:async()=>({tracking:"fixture", items:[row], fields})}};
+        window.apex={server:{process:async()=>({tracking:"fixture", preview:"#original", items:[row], fields})}};
         const schedule=window.setTimeout;
         window.setTimeout=(fn, ms)=>ms===1000 ? (nextPoll=fn, 0) : schedule(fn, ms);
         const run=document.querySelector(".inv-pdf-run");
@@ -289,14 +304,19 @@ class ApexControlsTest(unittest.TestCase):
         const panel=document.querySelector(".inv-results").closest(".t-skel");
         const placeholder=panel.querySelector(".t-skel-skeleton");
         const results=panel.querySelector(".inv-results");
+        const documentLoader=document.querySelector(".inv-document-loader");
+        const preview=documentLoader.querySelector(".inv-preview");
         const check=(condition, message)=>{ if(!condition) throw Error(message); };
         const current=()=>document.querySelector('[aria-current="step"]');
+        const documentPending=()=>documentLoader.dataset.state==="loading" &&
+          documentLoader.getAttribute("aria-busy")==="true" && preview.inert && !preview.querySelector("iframe, img");
         InvoiceMonitor.start();
         (async()=>{
           await Promise.resolve();
           check(run.disabled && getComputedStyle(form).display==="none", "tracked job stays locked after reload");
           check(panel.dataset.state==="loading" && panel.getAttribute("aria-busy")==="true" && results.inert,
                 "busy results are replaced by the placeholder");
+          check(documentPending(), "reopening a queued job keeps the original PDF hidden");
           check(placeholder.getAttribute("aria-hidden")==="true" && getComputedStyle(placeholder).visibility==="visible" && !results.textContent,
                 "decorative skeleton is visible in place of waiting text");
           const reducedMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -310,6 +330,7 @@ class ApexControlsTest(unittest.TestCase):
             row={STATE:"RUNNING", STAGE:stage};
             await nextPoll();
             check(current().textContent===title+"In progress", "polling advances to "+title);
+            check(documentPending(), "the document stays behind the skeleton during "+title);
             check(getComputedStyle(current()).animationName==="inv-pdf-progress", "active stage is animated");
             check(current().previousElementSibling.dataset.state==="Complete", "previous stage is complete");
           }
@@ -320,6 +341,11 @@ class ApexControlsTest(unittest.TestCase):
           check(!run.disabled && run.textContent==="New execution" && getComputedStyle(run,"::before").animationName==="none", "completion offers a new execution");
           check(panel.dataset.state==="ready" && panel.getAttribute("aria-busy")==="false" && !results.inert && results.textContent.includes("DEMO"),
                 "real results replace the busy state and become accessible");
+          const frame=preview.querySelector("iframe");
+          check(frame?.getAttribute("src")==="#original" && documentLoader.dataset.state==="loading" && preview.inert,
+                "successful extraction without page images starts loading the original PDF");
+          frame.dispatchEvent(new Event("load"));
+          check(documentLoader.dataset.state==="ready" && !preview.inert, "the original PDF is revealed after loading");
           check(getComputedStyle(results).transitionDuration===(reducedMotion ? "0s" : "0.4s, 0.4s"), "reveal follows the motion preference");
           run.click();
           check(run.disabled && run.textContent==="Run extraction" && getComputedStyle(form).display!=="none", "new execution restores upload controls");
