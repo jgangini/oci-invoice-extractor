@@ -83,12 +83,12 @@ globalThis.InvoiceMonitor = (() => {
     function overlay(field, index, box, selected, onClick) {
         const mark = node("button");
         mark.type = "button"; mark.className = "inv-box inv-ink-" + index % 6;
-        mark.dataset.key = field.FIELD_KEY; mark.title = field.LABEL;
+        mark.dataset.key = field.FIELD_KEY;
         mark.setAttribute("aria-label", "Show field " + (index + 1) + ", " + field.LABEL);
         mark.setAttribute("aria-pressed", String(selected));
         [mark.style.left, mark.style.top, mark.style.width, mark.style.height] =
             [box[0], box[1], box[2] - box[0], box[3] - box[1]].map(n => (100 * n) + "%");
-        mark.append(node("span", String(index + 1)), node("b", field.LABEL || field.FIELD_KEY));
+        mark.append(node("span", String(index + 1)));
         mark.addEventListener("click", onClick);
         return mark;
     }
@@ -168,14 +168,17 @@ globalThis.InvoiceMonitor = (() => {
             .filter(({field}) => (!name || field.FIELD_KEY === name) && (!status || field.STATUS === status));
     }
 
-    function spotlight(mask, marker) {
+    function spotlight(viewer, mask, caption, marker, field) {
         mask.classList.toggle("is-active", Boolean(marker));
+        caption.hidden = !marker;
         if (!marker) return;
         const {left, top, width, height} = marker.style;
-        mask.style.setProperty("--spot-x", left);
-        mask.style.setProperty("--spot-y", top);
-        mask.style.setProperty("--spot-right", "calc(" + left + " + " + width + ")");
-        mask.style.setProperty("--spot-bottom", "calc(" + top + " + " + height + ")");
+        viewer.style.setProperty("--spot-x", left);
+        viewer.style.setProperty("--spot-y", top);
+        viewer.style.setProperty("--spot-right", "calc(" + left + " + " + width + ")");
+        viewer.style.setProperty("--spot-bottom", "calc(" + top + " + " + height + ")");
+        caption.textContent = marker.firstElementChild.textContent + ". " + (field.LABEL || field.FIELD_KEY);
+        caption.classList.toggle("is-below", marker.offsetTop < caption.offsetHeight + 8);
         marker.classList.add("is-spotlit");
     }
 
@@ -202,7 +205,7 @@ globalThis.InvoiceMonitor = (() => {
         media.addEventListener("error", () => finish(true), {once:true});
     }
 
-    function renderEvidencePage(preview, viewer, page, mask) {
+    function renderEvidencePage(preview, viewer, page, mask, caption) {
         const existing = viewer.querySelector("img");
         if (existing?.getAttribute("src") === page.IMAGE_URL) {
             viewer.querySelectorAll(".inv-box").forEach(marker => marker.remove());
@@ -211,7 +214,7 @@ globalThis.InvoiceMonitor = (() => {
         const img = node("img");
         img.alt = "Page " + page.PAGE_NO + " of the analyzed document";
         img.width = Number(page.WIDTH_PX); img.height = Number(page.HEIGHT_PX);
-        viewer.replaceChildren(img, mask);
+        viewer.replaceChildren(img, mask, caption);
         waitForPreview(preview, img);
         img.src = page.IMAGE_URL;
     }
@@ -232,6 +235,8 @@ globalThis.InvoiceMonitor = (() => {
         layer.options[1].disabled = !lines.length;
         const viewer = node("div"); viewer.className = "inv-page-image";
         const mask = node("div"); mask.className = "inv-evidence-mask"; mask.setAttribute("aria-hidden", "true");
+        const caption = node("div"); caption.className = "inv-spot-label"; caption.hidden = true;
+        caption.setAttribute("aria-hidden", "true");
         const preview = root.querySelector(".inv-preview");
         preview.replaceChildren(viewer);
         const results = root.querySelector(".inv-results");
@@ -244,29 +249,42 @@ globalThis.InvoiceMonitor = (() => {
         const links = new Map(), markers = new Map();
         let chosen, hovered, focused, shownPage, fields, regionsPage;
 
+        const activeField = () => hovered ?? focused ?? chosen;
         function paintSpotlight() {
-            const active = hovered ?? focused ?? chosen;
+            const active = activeField();
             const page = String(active?.PAGE_NO || selector.value);
             if (shownPage !== page) showPage(page);
             viewer.querySelector(".is-spotlit")?.classList.remove("is-spotlit");
-            spotlight(mask, markers.get(active?.FIELD_KEY));
+            spotlight(viewer, mask, caption, markers.get(active?.FIELD_KEY), active);
+        }
+
+        function updateSelection() {
+            const selected = chosen?.FIELD_KEY;
+            links.forEach((item, key) => {
+                item.card.classList.toggle("is-selected", key === selected);
+                item.button?.setAttribute("aria-pressed", String(key === selected));
+            });
+            markers.forEach((mark, key) => mark.setAttribute("aria-pressed", String(key === selected)));
         }
 
         function highlight(field) {
             chosen = field;
             selector.value = String(field.PAGE_NO);
-            links.forEach((item, key) => {
-                item.card.classList.toggle("is-selected", key === field.FIELD_KEY);
-                item.button?.setAttribute("aria-pressed", String(key === field.FIELD_KEY));
-            });
             paintSpotlight();
-            markers.forEach((mark, key) => mark.setAttribute("aria-pressed", String(key === field.FIELD_KEY)));
+            updateSelection();
+        }
+
+        function dismissSpotlight() {
+            if (!activeField()) return;
+            chosen = hovered = focused = undefined;
+            paintSpotlight();
+            updateSelection();
         }
 
         function showPage(pageNo) {
             shownPage = pageNo;
             const page = available.get(pageNo);
-            renderEvidencePage(preview, viewer, page, mask);
+            renderEvidencePage(preview, viewer, page, mask, caption);
             markers.clear();
             fields.forEach(({field, index}) => {
                 const box = boxFor(field.EVIDENCE_BOX);
@@ -275,6 +293,7 @@ globalThis.InvoiceMonitor = (() => {
                 const mark = overlay(field, index, box, key === chosen?.FIELD_KEY, () => {
                     highlight(field); links.get(key).button.focus();
                 });
+                previewFocus(mark, field);
                 viewer.append(mark); markers.set(key, mark);
             });
         }
@@ -285,8 +304,15 @@ globalThis.InvoiceMonitor = (() => {
                 hovered = field; paintSpotlight();
             };
             item.card.onpointerleave = () => { hovered = undefined; paintSpotlight(); };
-            item.button.onfocus = () => { focused = field; paintSpotlight(); };
-            item.button.onblur = () => { focused = undefined; paintSpotlight(); };
+            previewFocus(item.button, field);
+        }
+
+        function previewFocus(control, field) {
+            control.onfocus = () => { focused = field; paintSpotlight(); };
+            control.onblur = () => {
+                if (focused !== field) return;
+                focused = undefined; paintSpotlight();
+            };
         }
 
         function renderLayer() {
@@ -319,6 +345,7 @@ globalThis.InvoiceMonitor = (() => {
         }
         selector.onchange = layer.onchange = filters.name.onchange = filters.status.onchange = regionFilter.onchange = renderLayer;
         renderLayer();
+        return dismissSpotlight;
     }
 
     function unlocatedFields(root, result) {
@@ -357,8 +384,7 @@ globalThis.InvoiceMonitor = (() => {
             return;
         }
         if (result.tracking && row.STATE !== "ERROR" && result.pages?.length) {
-            evidence(root, result.pages, result.fields || [], result.lines || []);
-            return;
+            return evidence(root, result.pages, result.fields || [], result.lines || []);
         }
         if (result.tracking && row.STATE !== "ERROR" && result.preview) {
             showPdf(root, preview, result.preview);
@@ -428,7 +454,7 @@ globalThis.InvoiceMonitor = (() => {
 
     const pdfInput = 'input[type=file]#P6_FILE, #P6_FILE_CONTAINER input[type=file]';
 
-    function pdfSubmission(root, setStatus, accepted, reset) {
+    function pdfSubmission(root, setStatus, accepted, reset, renderReview) {
         const run = document.querySelector(".inv-pdf-run");
         const label = run?.querySelector(".t-Button-label") ?? run;
         const inputRegion = run?.closest(".inv-pdf-input");
@@ -449,7 +475,7 @@ globalThis.InvoiceMonitor = (() => {
         function uploadFailed(message) {
             setState("idle");
             root.classList.remove("is-visible");
-            pdfResult(root, {}, {});
+            renderReview({}, {});
             setStatus(message, true);
         }
 
@@ -464,7 +490,7 @@ globalThis.InvoiceMonitor = (() => {
             }
             setState("processing");
             root.classList.add("is-visible");
-            pdfResult(root, {tracking: true}, {STAGE: "QUEUED", TEMPLATE_NAME: root.dataset.templateName});
+            renderReview({tracking: true}, {STAGE: "QUEUED", TEMPLATE_NAME: root.dataset.templateName});
             setStatus("Submitting PDF for extraction…");
             let response;
             try {
@@ -485,9 +511,25 @@ globalThis.InvoiceMonitor = (() => {
         };
     }
 
+    function bindEvidenceDismissal(root, dismiss) {
+        document.addEventListener("click", event => {
+            const control = event.target.closest?.(".inv-box, .inv-match:has(button)");
+            if (!root.contains(control)) dismiss();
+        }, true);
+        document.addEventListener("keydown", event => {
+            if (event.key === "Escape") dismiss();
+        });
+    }
+
     function pdfMonitor(root, setStatus) {
         const preview = root.querySelector(".inv-preview");
         let selectedFile, tracking, submission;
+
+        let dismissEvidence;
+
+        function renderReview(result, row) {
+            dismissEvidence = pdfResult(root, result, row);
+        }
 
         function clearPreview(message) {
             reviewControls(root);
@@ -501,7 +543,7 @@ globalThis.InvoiceMonitor = (() => {
             tracking = null;
             root.classList.remove("is-visible");
             submission.setFile(null);
-            pdfResult(root, {}, {});
+            renderReview({}, {});
             if (!file) {
                 clearPreview("Select a PDF to preview it.");
                 return;
@@ -519,7 +561,7 @@ globalThis.InvoiceMonitor = (() => {
             tracking = null;
             root.classList.remove("is-visible");
             clearPreview("Select a PDF to preview it.");
-            pdfResult(root, {}, {});
+            renderReview({}, {});
             setStatus("Choose a PDF and run extraction.");
         }
 
@@ -530,7 +572,8 @@ globalThis.InvoiceMonitor = (() => {
                 submission.setFile(null);
                 apex.item("P6_FILE").setValue("", null, true);
                 update();
-            }, reset);
+            }, reset, renderReview);
+            bindEvidenceDismissal(root, () => dismissEvidence?.());
             document.addEventListener("change", event => {
                 if (event.target.matches(pdfInput)) {
                     selectFile(event.target.files?.[0]);
@@ -548,7 +591,7 @@ globalThis.InvoiceMonitor = (() => {
                 root.dataset.templateName = result.templateName || "";
                 submission.setState(pdfFormStates[row.STATE] || "idle");
                 root.classList.toggle("is-visible", Boolean(result.tracking));
-                pdfResult(root, result, row);
+                renderReview(result, row);
                 const issue = row.ERROR_CODE === "dispatch_failed" ?
                     "The extraction service did not accept the PDF. Run extraction again." : row.ERROR_CODE;
                 return [row.FILENAME, row.STATE ? named(row.STATE) : "Queued", issue];

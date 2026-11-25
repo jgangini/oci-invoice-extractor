@@ -18,3 +18,29 @@ output "source_prefix" { value = var.source_prefix }
 output "event_rule_id" { value = oci_events_rule.ingest.id }
 output "function_id" { value = oci_functions_function.extractor.id }
 output "function_invoke_url" { value = "${oci_functions_function.extractor.invoke_endpoint}/20181201/functions/${oci_functions_function.extractor.id}/actions/invoke" }
+
+output "deploy_studio_resource_labels" {
+  value = {
+    "oci_core_vcn.extractor"                       = "Function virtual network"
+    "oci_core_service_gateway.oracle"              = "Oracle Services Gateway"
+    "oci_core_route_table.private"                 = "Function route table"
+    "oci_core_security_list.private"               = "Function security list"
+    "oci_core_subnet.functions"                    = "Function subnet"
+    "oci_objectstorage_bucket.invoices[0]"         = "Invoice upload bucket"
+    "oci_objectstorage_object.source_folder[0]"    = "ZIP upload folder"
+    "oci_kms_vault.database[0]"                    = "Database Vault"
+    "oci_kms_key.database[0]"                      = "Database encryption key"
+    "terraform_data.secret_namespace[0]"           = "Deployment secret namespace"
+    "oci_vault_secret.database[\"runtime\"]"       = "Function database secret"
+    "oci_vault_secret.database[\"admin\"]"         = "Database administrator secret"
+    "oci_database_autonomous_database.invoices[0]" = "Autonomous AI Database"
+    "oci_functions_application.invoices"           = "Invoice Functions application"
+    "oci_functions_function.extractor"             = "Invoice extraction function"
+    "oci_identity_policy.delivery"                 = "Function invocation policy"
+    "oci_identity_policy.source_objects"           = "Invoice object access policy"
+    "oci_identity_policy.runtime_secret"           = "Function secret access policy"
+    "oci_events_rule.ingest"                       = "ZIP ingestion rule"
+    "oci_logging_log_group.invoices"               = "Invoice log group"
+    "oci_logging_log.function"                     = "Function invocation log"
+  }
+}

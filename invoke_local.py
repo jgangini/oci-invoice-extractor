@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 async def main(args):
-    template = json.loads((ROOT / "templates/facturas.json").read_text(encoding="utf-8"))
+    template = json.loads((ROOT / "source/invoice-catalog.json").read_text(encoding="utf-8"))
 
     def offline(event, _fn_id):
         cfg = {"BUCKET_NAME": args.bucket, "OBJECT_NAMESPACE": args.namespace, "SOURCE_PREFIX": "entrada/"}

@@ -72,7 +72,7 @@ class ApexControlsTest(unittest.TestCase):
         harness = """
         const data = {tracking:"fixture", templateName:"Invoice Catalog", preview:"#original", items:[{STATE:"DONE",STAGE:"DONE",TEMPLATE_NAME:"Previous catalog"}],
           pages:[{PAGE_NO:1,WIDTH_PX:1200,HEIGHT_PX:900,IMAGE_URL:"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",METHOD:"native",FRAGMENT_TOTAL:2,FRAGMENT_SHOWN:2}],
-          fields:[{FIELD_KEY:"invoice",LABEL:"Factura",STATUS:"found",NORMALIZED_TEXT:"DEMO",ANCHOR_TEXT:"Raw OCR excerpt",PAGE_NO:1,EVIDENCE_BOX:[.2,.3,.5,.4]},
+          fields:[{FIELD_KEY:"invoice",LABEL:"Factura",STATUS:"found",NORMALIZED_TEXT:"DEMO",ANCHOR_TEXT:"Raw OCR excerpt",PAGE_NO:1,EVIDENCE_BOX:[.84,.005,.98,.03]},
                   {FIELD_KEY:"missing",LABEL:"Issue date",STATUS:"absent"}],
           lines:[{PAGE_NO:1,FRAGMENT_NO:1,TEXT_VALUE:"Otro texto",EVIDENCE_BOX:"[0.1,0.5,0.2,0.6]"},
                  {PAGE_NO:1,FRAGMENT_NO:2,TEXT_VALUE:"Otra región",EVIDENCE_BOX:"[0.3,0.5,0.4,0.6]"}]};
@@ -165,7 +165,25 @@ class ApexControlsTest(unittest.TestCase):
             if(getComputedStyle(field).textDecorationLine!=="none") throw Error("field title not underlined");
             const mark=document.querySelector(".inv-box");
             if(document.activeElement!==mark || mark.getAttribute("aria-pressed")!=="true") throw Error("field to box");
+            const caption=spread.querySelector(".inv-spot-label");
+            const bounds=mark.parentElement.getBoundingClientRect();
+            const label=caption.getBoundingClientRect();
+            const style=getComputedStyle(mark);
+            if(caption.hidden || caption.textContent!=="1. Factura" ||
+               label.left<bounds.left || label.right>bounds.right ||
+               label.top<=mark.getBoundingClientRect().bottom) throw Error("top-right caption fits below evidence");
+            if(style.borderTopColor!=="rgba(0, 0, 0, 0)" || style.backgroundColor!=="rgba(0, 0, 0, 0)" ||
+               style.outlineStyle!=="solid") throw Error("one outline around untinted evidence");
             mark.click(); if(document.activeElement!==field) throw Error("box to field");
+            const cleared=()=>!mask.classList.contains("is-active") && caption.hidden &&
+              !found.classList.contains("is-selected") && mark.getAttribute("aria-pressed")==="false" &&
+              field.getAttribute("aria-pressed")==="false";
+            document.body.click();
+            if(!cleared()) throw Error("clicking outside the sheet clears the active evidence");
+            field.click(); image.click();
+            if(!cleared()) throw Error("clicking the unmarked sheet clears the active evidence");
+            field.click(); mark.dispatchEvent(new KeyboardEvent("keydown", {bubbles:true,key:"Escape"}));
+            if(!cleared() || document.activeElement!==mark) throw Error("Escape clears the active evidence and retains focus");
             const pick=status=>{filter.value=status; filter.dispatchEvent(new Event("change"));};
             pick("absent");
             if(spread.querySelector("img")!==image || documentLoader.dataset.state!=="ready") throw Error("filter changes keep the loaded document");

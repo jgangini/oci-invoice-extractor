@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Arquitectura OCI de Invoice Extractor",
+    "locale": "es",
+    "output": "docs/arquitectura/oci.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/jgangini/oci-invoice-extractor.git",
+      "revision": "03332e5905bd28c40048ea4c5b28a88c26634e21"
+    },
+    "views": [
+      {"id": "zip", "label": "Lotes ZIP", "focus": ["reviewer", "apex", "atp", "external-system", "bucket", "events", "functions"], "note": "APEX escribe el ZIP en el bucket. También se admiten cargas directas al prefijo configurado."},
+      {"id": "pdf", "label": "Documento individual", "focus": ["reviewer", "apex", "atp", "functions"], "note": "La base guarda el PDF, invoca la Function y entrega el estado y la evidencia a APEX."},
+      {"id": "operations", "label": "Servicios de soporte", "focus": ["functions", "registry", "vault", "logging"], "note": "Container Registry aporta la imagen, Vault aporta el secreto y Logging registra las invocaciones."}
+    ]
+  },
+  "components": [
+    {"id": "reviewer", "type": "external", "icon": "person", "label": "Operador", "sublabel": "Carga y revisión", "pos": [35, 215], "size": [124, 76], "sources": [{"path": "README.md", "line": 41, "end_line": 45}]},
+    {"id": "external-system", "type": "external", "label": "Sistema externo", "sublabel": "Lotes de facturas", "pos": [35, 417], "size": [124, 76], "sources": [{"path": "README.md", "line": 45}, {"path": "terraform/ingestion.tf", "line": 91, "end_line": 106}]},
+    {"id": "apex", "type": "frontend", "icon": "none", "brand": "oci-apex", "label": "Oracle APEX", "sublabel": "Aplicación 100 · INVOICES", "pos": [246, 215], "size": [170, 76], "sources": [{"path": "deploy/hooks/post_apply.py", "line": 170, "end_line": 185}, {"path": "apex/app/pages/p00006-probar-pdf.apx", "line": 222, "end_line": 230}, {"path": "apex/app/pages/p00007-cargar-zip.apx", "line": 109, "end_line": 118}]},
+    {"id": "atp", "type": "database", "icon": "none", "brand": "oci-autonomous-transaction-processing-atp", "label": "Autonomous Database", "sublabel": "ATP · INV_DATA", "pos": [530, 215], "size": [187, 76], "sources": [{"path": "terraform/database.tf", "line": 30, "end_line": 59}, {"path": "database/uploads.sql", "line": 21, "end_line": 63}, {"path": "database/api.sql", "line": 7, "end_line": 39}]},
+    {"id": "bucket", "type": "cloud", "icon": "none", "brand": "oci-object-storage", "label": "Object Storage", "sublabel": "Bucket privado · archivos ZIP", "pos": [572, 417], "size": [192, 76], "sources": [{"path": "terraform/ingestion.tf", "line": 14, "end_line": 22}, {"path": "terraform/bucket.tf", "line": 12, "end_line": 45}, {"path": "database/uploads.sql", "line": 27, "end_line": 37}]},
+    {"id": "events", "type": "messagebus", "icon": "none", "brand": "oci-observability-and-management-nbsp-events", "label": "OCI Events", "sublabel": "Creación de ZIP en el prefijo", "pos": [916, 417], "size": [176, 76], "sources": [{"path": "terraform/ingestion.tf", "line": 91, "end_line": 111}, {"path": "deploy/hooks/post_apply.py", "line": 267, "end_line": 269}]},
+    {"id": "functions", "type": "backend", "icon": "none", "brand": "oci-functions", "label": "OCI Functions", "sublabel": "extract · texto PDF / RapidOCR", "pos": [901, 215], "size": [206, 76], "sources": [{"path": "terraform/ingestion.tf", "line": 28, "end_line": 49}, {"path": "extractor/service.py", "line": 87, "end_line": 174}, {"path": "extractor/worker.py", "line": 15, "end_line": 37}]},
+    {"id": "registry", "type": "cloud", "icon": "none", "brand": "oci-container-registry", "label": "Container Registry", "sublabel": "Imagen privada fijada por digest", "pos": [654, 45], "size": [204, 76], "sources": [{"path": "terraform/ingestion.tf", "line": 35, "end_line": 55}, {"path": "deploy/hooks/prepare_image.py", "line": 171, "end_line": 189}]},
+    {"id": "vault", "type": "security", "icon": "none", "brand": "oci-vault", "label": "OCI Vault", "sublabel": "Secreto de conexión INV_FN", "pos": [923, 45], "size": [162, 76], "sources": [{"path": "terraform/ingestion.tf", "line": 83, "end_line": 89}, {"path": "extractor/service.py", "line": 147, "end_line": 168}]},
+    {"id": "logging", "type": "cloud", "icon": "none", "brand": "oci-logging", "label": "OCI Logging", "sublabel": "Invocaciones · 30 días", "pos": [1203, 215], "size": [158, 76], "sources": [{"path": "terraform/ingestion.tf", "line": 114, "end_line": 132}, {"path": "func.py", "line": 9, "end_line": 22}]}
+  ],
+  "boundaries": [
+    {"kind": "region", "label": "OCI · recursos regionales", "wraps": ["apex", "atp", "bucket", "events", "functions", "registry", "vault", "logging"], "pad": 22},
+    {"kind": "security-group", "label": "VCN · subred privada", "wraps": ["functions"], "pad": 22}
+  ],
+  "connections": [
+    {"from": "reviewer", "to": "apex", "label": "HTTPS", "variant": "emphasis"},
+    {"from": "apex", "to": "atp", "label": "SQL / PL/SQL", "variant": "emphasis"},
+    {"from": "atp", "to": "functions", "label": "Invoca prueba PDF", "variant": "dashed"},
+    {"from": "functions", "to": "atp", "label": "SQL/TLS · resultados", "variant": "emphasis"},
+    {"from": "atp", "to": "bucket", "label": "PUT del ZIP"},
+    {"from": "external-system", "to": "bucket", "label": "Sube ZIP con PDF", "variant": "emphasis"},
+    {"from": "bucket", "to": "events", "label": "Creación de objeto", "variant": "dashed"},
+    {"from": "events", "to": "functions", "label": "Invoca ingesta", "variant": "dashed"},
+    {"from": "functions", "to": "bucket", "label": "GET del ZIP", "fromSide": "bottom", "toSide": "top"},
+    {"from": "registry", "to": "functions", "label": "Imagen"},
+    {"from": "functions", "to": "vault", "label": "Secreto", "variant": "security"},
+    {"from": "functions", "to": "logging", "label": "Registros"}
+  ],
+  "cards": [
+    {"dot": "cyan", "title": "Lotes ZIP", "items": ["Events filtra el bucket, prefijo y extensión. La Function registra la generación y se invoca de forma asíncrona para procesarla.", "La lectura del ZIP verifica su revisión. El lote usa el catálogo vigente al ingresar."]},
+    {"dot": "emerald", "title": "Prueba de PDF", "items": ["Autonomous guarda la prueba y envía su ID a la misma Function. El navegador consulta a APEX para mostrar avance y evidencia.", "RapidOCR se ejecuta dentro de la imagen cuando el texto nativo es insuficiente."]},
+    {"dot": "amber", "title": "Red y despliegue", "items": ["La subred privada de Functions usa un Service Gateway hacia Oracle Services Network. El acceso HTTPS de APEX está sujeto a la ACL del piloto.", "Deploy Studio aprovisiona mediante OCI Resource Manager. El instalador habilita Events después de verificar el entorno."]}
+  ]
+}

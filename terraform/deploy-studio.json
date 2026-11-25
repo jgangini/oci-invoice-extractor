@@ -225,7 +225,7 @@
         "label": "New bucket name",
         "type": "text",
         "required": true,
-        "default": "invoice-uploads",
+        "default": "oci-invoice-extractor",
         "pattern": "^[A-Za-z0-9][A-Za-z0-9_\\-]{0,254}$",
         "visible_when": {
           "field": "bucket_mode",
@@ -346,6 +346,8 @@
   "presentation": {
     "title": "OCI Invoice Extractor",
     "summary": "Extract invoice fields from ZIP files with OCI Functions and review the results in Oracle APEX.",
+    "image": "/assets/oci-invoice-extractor-card.png",
+    "image_alt": "Red scanner highlighting fields on an invoice",
     "tags": [
       "OCI Functions",
       "APEX",
@@ -402,6 +404,26 @@
     "runtime_secret_ocid",
     "admin_secret_ocid"
   ],
+  "email": {
+    "services": [
+      {
+        "title": "Oracle APEX",
+        "fields": [
+          {"label": "Access URL", "output": "application_url", "link": true},
+          {"label": "Initial APEX username", "input": "apex_operator"},
+          {"label": "Initial APEX password", "input": "apex_operator_password"}
+        ]
+      },
+      {
+        "title": "Object Storage",
+        "fields": [
+          {"label": "Bucket", "output": "bucket_name"},
+          {"label": "ZIP upload folder", "output": "source_prefix"}
+        ]
+      }
+    ],
+    "attachments": ["deployment.log"]
+  },
   "preflight": {
     "entrypoint": "deploy/hooks/preflight.py",
     "requires_oci_credentials": true,

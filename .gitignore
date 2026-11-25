@@ -11,15 +11,25 @@
 **/__pycache__/
 .pytest_cache/
 .sentrux/
+.sentruxignore
+.graphify/
+.graphifyignore
 graphify-out/
+.semble/
+.sembleignore
 build/
 dist/
+tmp/
 
 .env
 .env.*
 .local/
 .agents/
 .archify/
+.archifyignore
+AGENTS.md
+CLAUDE.md
+.vscode/
 *.p12
 *.sso
 *.jks

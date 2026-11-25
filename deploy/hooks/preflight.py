@@ -40,11 +40,14 @@ def password_valid(password, username):
 
 
 def check_cidrs(value):
+    items = [item.strip() for item in value.split(",")]
+    if any(not re.fullmatch(r"[0-9.]+/(?:2[4-9]|3[0-2])", item) for item in items):
+        raise InputError("Enter public IPv4 networks with /24 to /32. Add /32 for a single IP address.")
     try:
-        networks = [ipaddress.ip_network(item.strip()) for item in value.split(",")]
+        networks = [ipaddress.IPv4Network(item) for item in items]
     except ValueError:
         raise InputError("Enter public IPv4 ranges, for example an address followed by /32.") from None
-    if any(net.version != 4 or net.prefixlen < 24 or not net.is_global for net in networks):
+    if any(not net.is_global for net in networks):
         raise InputError("Allowed IP ranges must be public IPv4 networks from /24 to /32.")
 
 

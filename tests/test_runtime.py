@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import zipfile
 
 import oci
+import oracledb
 
 from extractor import service
 from extractor.service import process, source_event
@@ -17,6 +18,15 @@ EVENT = {"eventType": "com.oraclecloud.objectstorage.createobject",
 
 
 class RoutingTests(unittest.TestCase):
+    def test_missing_probe_batch_leaves_database_and_storage_unchanged(self):
+        store, storage, enqueue = Mock(), Mock(), Mock()
+        store.resume.side_effect = oracledb.DatabaseError(SimpleNamespace(code=1403))
+        result = process({"batch_id": -1, "generation": -1}, CONFIG, store, storage, enqueue)
+        self.assertEqual(result, {"status": "superseded"})
+        self.assertEqual([entry[0] for entry in store.mock_calls], ["resume"])
+        self.assertEqual(storage.mock_calls, [])
+        enqueue.assert_not_called()
+
     def test_unrelated_objects_do_not_use_storage(self):
         storage = Mock()
         for key in ("otra/lote.zip", "entrada/lote.csv", "entrada/"):

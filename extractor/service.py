@@ -13,7 +13,7 @@ from .preview import preview
 from .worker import DocumentError, DocumentWorker
 
 LOG = logging.getLogger(__name__)
-ENGINE = "0.3.3"
+ENGINE = "0.3.4"
 
 
 def source_event(event, config):

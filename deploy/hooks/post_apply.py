@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import time
 from urllib.parse import quote, urlsplit, urlunsplit
 
 from deploy.hooks.database_target import DatabaseTargetError, SCHEMAS, installation_profile, schema_identity
@@ -199,6 +200,36 @@ def delivery(client, outputs, compartment, enabled):
                            if_match=rule.headers["etag"])
 
 
+def verify_function(config, outputs):
+    import oci
+
+    (host, _), _ = regional_endpoints(config["region"], outputs)
+    client = oci.functions.FunctionsInvokeClient(
+        config, service_endpoint=f"https://{host}", timeout=(5, 40),
+    )
+    # Batch IDs start at 1. Resuming a missing batch exercises the read-only database path.
+    payload = b'{"batch_id":-1,"generation":-1}'
+    for attempt in range(4):
+        try:
+            response = client.invoke_function(
+                outputs["function_id"], invoke_function_body=payload,
+                fn_invoke_type="sync", retry_strategy=oci.retry.NoneRetryStrategy(),
+            )
+            break
+        except oci.exceptions.ServiceError as exc:
+            if attempt == 3 or exc.status not in {404, 429, 500, 502, 503, 504}:
+                raise
+        except oci.exceptions.RequestException:
+            if attempt == 3:
+                raise
+        time.sleep(5 * (attempt + 1))
+    try:
+        if response.status != 200 or json.loads(response.data.raw.read(1025)) != {"status": "superseded"}:
+            raise RuntimeError("Function did not confirm the expected read-only result")
+    finally:
+        response.data.close()
+
+
 def application_url(base):
     parts = urlsplit(base)
     if parts.scheme != "https" or not parts.hostname or "/ords" not in parts.path:
@@ -263,9 +294,8 @@ def install(stages):
         stages.append("APEX application import")
         with schema_session(admin, "INV_APEX", admin_password, dsn) as parsing_schema:
             install_apex(parsing_schema)
-    stages.append("runtime verification and event activation")
-    with oracledb.connect(user="INV_FN", password=runtime_password, dsn=dsn, ssl_server_dn_match=True) as runtime:
-        runtime.ping()
+    stages.append("OCI Function and database verification")
+    verify_function(cfg, outputs)
     url = application_url(outputs["apex_base_url"])
     if inputs["bucket_mode"] == "new":
         stages.append("initial catalog upload")
@@ -280,7 +310,7 @@ def main():
     stages = ["installation contract"]
     try:
         outputs = install(stages)
-        result = {"outputs": outputs, "events": [{"level": "success", "message": "APEX installed and Events rule enabled."}]}
+        result = {"outputs": outputs, "events": [{"level": "success", "message": "APEX installed, Function database access verified and Events rule enabled."}]}
         code = 0
     except Exception as exc:
         # Only known error codes are useful here. Driver messages can include SQL or credentials.

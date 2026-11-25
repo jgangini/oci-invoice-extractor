@@ -1,15 +1,22 @@
+import io
 import json
 import os
 from pathlib import Path
 import sys
 from types import SimpleNamespace
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 from deploy.hooks import post_apply, preflight
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_public_ipv4_requires_an_explicit_cidr_prefix(self):
+        preflight.check_cidrs("8.8.8.8/32, 1.1.1.0/24")
+        for value in ("8.8.8.8", "1.1.1.0/255.255.255.0", "8.8.8.8/24", "10.0.0.0/24", "1.1.0.0/16"):
+            with self.subTest(value=value), self.assertRaises(preflight.InputError):
+                preflight.check_cidrs(value)
+
     def test_bucket_reuse_requires_readable_private_event_source(self):
         client = Mock()
         bucket = client.get_bucket.return_value.data
@@ -46,6 +53,10 @@ class DeploymentTests(unittest.TestCase):
                          "runtime_secret_ocid"}.isdisjoint(fields))
         self.assertEqual(fields["access_cidrs"]["label"], "Allowed IP ranges")
         self.assertEqual(manifest["form"]["email_access_fields"], ["apex_operator", "apex_operator_password"])
+        self.assertEqual(fields["new_bucket_name"]["default"], manifest["project_id"])
+        email_fields = [field for service in manifest["email"]["services"] for field in service["fields"]]
+        self.assertEqual([field["input"] for field in email_fields if "input" in field],
+                         manifest["form"]["email_access_fields"])
         self.assertTrue(fields["apex_operator_password"]["secret"])
         self.assertEqual(fields["source_prefix"]["visible_when"], {"field": "bucket_mode", "equals": "existing"})
         self.assertEqual(fields["source_prefix"]["default"], "source/")
@@ -78,6 +89,57 @@ class DeploymentTests(unittest.TestCase):
             client.update_rule.assert_not_called()
             post_apply.delivery(client, outputs, "scope", True)
             client.update_rule.assert_called_once_with("rule", SimpleNamespace(is_enabled=True), if_match="first")
+
+    def test_function_probe_retries_propagation_and_requires_the_read_only_response(self):
+        from oci.exceptions import ServiceError
+
+        host = "test1.functions.us-chicago-1.oci.oraclecloud.com"
+        outputs = self.endpoint_outputs(host)
+        config = {"region": "us-chicago-1"}
+        unavailable = ServiceError(404, "NotAuthorizedOrNotFound", {}, "not ready")
+        with patch("oci.functions.FunctionsInvokeClient") as factory, patch.object(post_apply.time, "sleep") as sleep:
+            invoke = factory.return_value.invoke_function
+            for content, passes in ((b'{"status":"superseded"}', True), (b'{"status":"ignored"}', False)):
+                with self.subTest(content=content):
+                    body = Mock(raw=io.BytesIO(content))
+                    invoke.side_effect = [unavailable, SimpleNamespace(status=200, data=body)]
+                    if passes:
+                        post_apply.verify_function(config, outputs)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "read-only result"):
+                            post_apply.verify_function(config, outputs)
+                    body.close.assert_called_once()
+                    self.assertEqual(invoke.call_args.args, (outputs["function_id"],))
+                    self.assertEqual(invoke.call_args.kwargs["fn_invoke_type"], "sync")
+                    self.assertEqual(json.loads(invoke.call_args.kwargs["invoke_function_body"]),
+                                     {"batch_id": -1, "generation": -1})
+            factory.assert_called_with(config, service_endpoint=f"https://{host}", timeout=(5, 40))
+            self.assertEqual(sleep.call_args_list, [call(5), call(5)])
+
+    def test_delivery_activates_only_after_the_function_probe(self):
+        outputs = {**self.endpoint_outputs("test1.functions.us-chicago-1.oci.oraclecloud.com"),
+                   "db_dsn": "fixture", "bucket_compartment_id": "target", "runtime_secret_ocid": "secret",
+                   "apex_base_url": "https://db.example/ords/apex"}
+        context = {"region": "us-chicago-1", "deployment_id": "fixture", "terraform_outputs": outputs,
+                   "inputs": {"apex_operator": "invoice_admin", "autonomous_database_mode": "existing", "bucket_mode": "existing"}}
+        secrets = {"inputs": {"apex_operator_password": "synthetic", "autonomous_database_admin_password": "synthetic"}}
+        flow = Mock()
+        with (patch("oci.events.EventsClient") as events, patch("oci.secrets.SecretsClient"),
+              patch("oci.object_storage.ObjectStorageClient"), patch("oracledb.connect"),
+              patch("deploy.hooks.admin_password.configure_admin_password"), patch("deploy.hooks.database_target.check_install_target"),
+              patch.multiple(post_apply, context_file=Mock(side_effect=[context, secrets] * 2), config_for=Mock(),
+                             read_password=Mock(), prepare_users=Mock(), enable_retry=Mock(), schema_session=MagicMock(),
+                             install_data=Mock(), create_workspace=Mock(), install_apex=Mock(),
+                             delivery=flow.delivery, verify_function=flow.verify_function)):
+            flow.verify_function.side_effect = RuntimeError("Function unavailable")
+            with self.assertRaisesRegex(RuntimeError, "Function unavailable"):
+                post_apply.install([])
+            flow.delivery.assert_called_once_with(events.return_value, outputs, "target", False)
+            flow.reset_mock(side_effect=True)
+            self.assertEqual(post_apply.install([]), {"application_url": "https://db.example/ords/f?p=100:1"})
+            self.assertEqual(flow.mock_calls, [call.delivery(events.return_value, outputs, "target", False),
+                                               call.verify_function(post_apply.config_for.return_value, outputs),
+                                               call.delivery(events.return_value, outputs, "target", True)])
 
     def test_hook_returns_phase_and_safe_code_only_on_failure(self):
         with patch.dict(os.environ, {"DEPLOY_STUDIO_OUTPUT": "result.json"}), patch.object(

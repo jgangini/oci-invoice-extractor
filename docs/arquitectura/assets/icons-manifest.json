@@ -1,0 +1,361 @@
+{
+  "version": 2,
+  "icons": [
+    {
+      "file": "oci-object-storage.svg",
+      "label": "Storage - Object Storage",
+      "category": "Storage",
+      "aliases": [],
+      "status": "current",
+      "source": "https://docs.oracle.com/iaas/Content/Resources/Assets/OCI-Style-Guide-for-Drawio.zip",
+      "archive_member": "Storage - Object Storage",
+      "archive_sha256": "8e20646de88b6197f7b2ce941219fdb61e88b2b6276e3e7b5e0ce046445174e8",
+      "sha256": "608646d895d6afac5a0506b75704797ce0b13ea8fab7b3c800d6c7874a49ac11",
+      "preparation": {
+        "profile": "oci-outline",
+        "removed": [
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          }
+        ],
+        "metadata_removed": 0,
+        "rights_notices": [],
+        "styles_inlined": 0,
+        "viewbox_from_dimensions": false,
+        "contrast": "review-on-both",
+        "source_sha256": "1028583e9522c703c5b6d1bcd4484692c5e8f4726308943b6c93a2d08d3354a4",
+        "conversion": [
+          "static M/L/C stencil conversion",
+          "separate service label omitted",
+          "viewBox fitted to artwork"
+        ]
+      },
+      "library": "oci",
+      "name": "object-storage",
+      "theme": "default",
+      "bundled_sha256": "aa3b46d481a3a7c23e527094ee595800516617d5d47eb9804e95d9d0b1900a7f",
+      "color": null
+    },
+    {
+      "file": "oci-functions.svg",
+      "label": "Compute - Functions",
+      "category": "Compute",
+      "aliases": [],
+      "status": "current",
+      "source": "https://docs.oracle.com/iaas/Content/Resources/Assets/OCI-Style-Guide-for-Drawio.zip",
+      "archive_member": "Compute - Functions",
+      "archive_sha256": "8e20646de88b6197f7b2ce941219fdb61e88b2b6276e3e7b5e0ce046445174e8",
+      "sha256": "c598845c2e28a2e6420fcbfc0b13b9c06fb2d6f4f06f7c8f00b2c28cdf867400",
+      "preparation": {
+        "profile": "oci-outline",
+        "removed": [
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          }
+        ],
+        "metadata_removed": 0,
+        "rights_notices": [],
+        "styles_inlined": 0,
+        "viewbox_from_dimensions": false,
+        "contrast": "review-on-both",
+        "source_sha256": "70a30c3c360821a9ba8961fc01a01e9eaf86df8b09815898e1616501f0ead219",
+        "conversion": [
+          "static M/L/C stencil conversion",
+          "separate service label omitted",
+          "viewBox fitted to artwork"
+        ]
+      },
+      "library": "oci",
+      "name": "functions",
+      "theme": "default",
+      "bundled_sha256": "d5e7bfecab39b00616842012336d63edef793166f2802744ad5eaeb217ef2dd8",
+      "color": null
+    },
+    {
+      "file": "oci-apex.svg",
+      "label": "Developer Services - APEX",
+      "category": "Developer Services",
+      "aliases": [],
+      "status": "current",
+      "source": "https://docs.oracle.com/iaas/Content/Resources/Assets/OCI-Style-Guide-for-Drawio.zip",
+      "archive_member": "Developer Services - APEX",
+      "archive_sha256": "8e20646de88b6197f7b2ce941219fdb61e88b2b6276e3e7b5e0ce046445174e8",
+      "sha256": "a81dd163b0e39fbe43977187e5e0e54a2cb7b18361ab628e248855bb0a802fcf",
+      "preparation": {
+        "profile": "oci-outline",
+        "removed": [
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          }
+        ],
+        "metadata_removed": 0,
+        "rights_notices": [],
+        "styles_inlined": 0,
+        "viewbox_from_dimensions": false,
+        "contrast": "review-on-both",
+        "source_sha256": "4caed5b771399058f71282fdf8823980858979121850d41bc98113af3db8389a",
+        "conversion": [
+          "static M/L/C stencil conversion",
+          "separate service label omitted",
+          "viewBox fitted to artwork"
+        ]
+      },
+      "library": "oci",
+      "name": "apex",
+      "theme": "default",
+      "bundled_sha256": "eae5f5d9d95b87886a2843d87229a3b49ee2cab140ac0829a1200ff68673f090",
+      "color": null
+    },
+    {
+      "file": "oci-autonomous-transaction-processing-atp.svg",
+      "label": "Database - Autonomous Transaction Processing ATP",
+      "category": "Database",
+      "aliases": [],
+      "status": "current",
+      "source": "https://docs.oracle.com/iaas/Content/Resources/Assets/OCI-Style-Guide-for-Drawio.zip",
+      "archive_member": "Database - Autonomous Transaction Processing ATP",
+      "archive_sha256": "8e20646de88b6197f7b2ce941219fdb61e88b2b6276e3e7b5e0ce046445174e8",
+      "sha256": "17857cb2b1ee34addbe265876a53b5030d306d05bdbda966e2ba415db624e5fa",
+      "preparation": {
+        "profile": "oci-outline",
+        "removed": [
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          }
+        ],
+        "metadata_removed": 0,
+        "rights_notices": [],
+        "styles_inlined": 0,
+        "viewbox_from_dimensions": false,
+        "contrast": "review-on-both",
+        "source_sha256": "0a933e223159301d2fdb1b45ef22d77da6d123346483f5ff759b8053a7d518a2",
+        "conversion": [
+          "static M/L/C stencil conversion",
+          "separate service label omitted",
+          "viewBox fitted to artwork"
+        ]
+      },
+      "library": "oci",
+      "name": "autonomous-transaction-processing-atp",
+      "theme": "default",
+      "bundled_sha256": "7e33b1636ad6667df4a01c4fd63b57923c91f0c73078061b12b92df8616f8ccb",
+      "color": null
+    },
+    {
+      "file": "oci-observability-and-management-nbsp-events.svg",
+      "label": "Observability and Management -&nbsp;Events",
+      "category": "Observability and Management -&nbsp;Events",
+      "aliases": [],
+      "status": "current",
+      "source": "https://docs.oracle.com/iaas/Content/Resources/Assets/OCI-Style-Guide-for-Drawio.zip",
+      "archive_member": "Observability and Management -&nbsp;Events",
+      "archive_sha256": "8e20646de88b6197f7b2ce941219fdb61e88b2b6276e3e7b5e0ce046445174e8",
+      "sha256": "7141f5261dd2de9e842a2f95b972b8ba637e07dc3201b39c0de3a944c872ca27",
+      "preparation": {
+        "profile": "oci-outline",
+        "removed": [
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          }
+        ],
+        "metadata_removed": 0,
+        "rights_notices": [],
+        "styles_inlined": 0,
+        "viewbox_from_dimensions": false,
+        "contrast": "review-on-both",
+        "source_sha256": "177ff652ac58d9476ada6789e648b8c7d3b58e47b5e3b301472eb11dde834c84",
+        "conversion": [
+          "static M/L/C stencil conversion",
+          "separate service label omitted",
+          "viewBox fitted to artwork"
+        ]
+      },
+      "library": "oci",
+      "name": "observability-and-management-nbsp-events",
+      "theme": "default",
+      "bundled_sha256": "3c97e7a7c10fbee953e49a416c48a0a43382595dde7f3f120a3c0f9780fcc60f",
+      "color": null
+    },
+    {
+      "file": "oci-vault.svg",
+      "label": "Identity and Security - Vault",
+      "category": "Identity and Security",
+      "aliases": [],
+      "status": "current",
+      "source": "https://docs.oracle.com/iaas/Content/Resources/Assets/OCI-Style-Guide-for-Drawio.zip",
+      "archive_member": "Identity and Security - Vault",
+      "archive_sha256": "8e20646de88b6197f7b2ce941219fdb61e88b2b6276e3e7b5e0ce046445174e8",
+      "sha256": "4e3d4939b808121862d0f5105dc2e95b6bb0805c6fae449644296a1f2f2c1540",
+      "preparation": {
+        "profile": "oci-outline",
+        "removed": [
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          }
+        ],
+        "metadata_removed": 0,
+        "rights_notices": [],
+        "styles_inlined": 0,
+        "viewbox_from_dimensions": false,
+        "contrast": "review-on-both",
+        "source_sha256": "1f0004cebf84b9e0de885af4c44677c2c6ec63cdc2a93cd69d3eeec9938852b9",
+        "conversion": [
+          "static M/L/C stencil conversion",
+          "separate service label omitted",
+          "viewBox fitted to artwork"
+        ]
+      },
+      "library": "oci",
+      "name": "vault",
+      "theme": "default",
+      "bundled_sha256": "5e09dab4e463283bc156003fb6c3ada05c49fa2b7f0b5ae53616f9afe2403bcf",
+      "color": null
+    },
+    {
+      "file": "oci-logging.svg",
+      "label": "Observability and Management - Logging",
+      "category": "Observability and Management",
+      "aliases": [],
+      "status": "current",
+      "source": "https://docs.oracle.com/iaas/Content/Resources/Assets/OCI-Style-Guide-for-Drawio.zip",
+      "archive_member": "Observability and Management - Logging",
+      "archive_sha256": "8e20646de88b6197f7b2ce941219fdb61e88b2b6276e3e7b5e0ce046445174e8",
+      "sha256": "fcb14692984d241c8f827d93cb733ff39de07de13fec3059fa56153c29e0b5a7",
+      "preparation": {
+        "profile": "oci-outline",
+        "removed": [
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          }
+        ],
+        "metadata_removed": 0,
+        "rights_notices": [],
+        "styles_inlined": 0,
+        "viewbox_from_dimensions": false,
+        "contrast": "review-on-both",
+        "source_sha256": "aa68b7e0e9fdb5197f7c65aea2c8b0623c59bf7fcb4ab80dcd9c3e357dcb4003",
+        "conversion": [
+          "static M/L/C stencil conversion",
+          "separate service label omitted",
+          "viewBox fitted to artwork"
+        ]
+      },
+      "library": "oci",
+      "name": "logging",
+      "theme": "default",
+      "bundled_sha256": "2b2f8bad9ea75e5e5b8048a4a3e1e66788461807d62f3ff9ae8fe611fcdc4a3c",
+      "color": null
+    },
+    {
+      "file": "oci-container-registry.svg",
+      "label": "Developer Services - Container Registry",
+      "category": "Developer Services",
+      "aliases": [],
+      "status": "current",
+      "source": "https://docs.oracle.com/iaas/Content/Resources/Assets/OCI-Style-Guide-for-Drawio.zip",
+      "archive_member": "Developer Services - Container Registry",
+      "archive_sha256": "8e20646de88b6197f7b2ce941219fdb61e88b2b6276e3e7b5e0ce046445174e8",
+      "sha256": "06702c58383eee0e8a0ba145cdedb509f309103544b6e63795d5e8c46eb8d07f",
+      "preparation": {
+        "profile": "oci-outline",
+        "removed": [
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          },
+          {
+            "kind": "oci-white-underlay",
+            "tag": "path",
+            "fill": "#FFFFFF"
+          }
+        ],
+        "metadata_removed": 0,
+        "rights_notices": [],
+        "styles_inlined": 0,
+        "viewbox_from_dimensions": false,
+        "contrast": "review-on-both",
+        "source_sha256": "302e7a00b4dedc99db3099bda0b4d5c5c1dc394c240667fef57fca76ce3b41e6",
+        "conversion": [
+          "static M/L/C stencil conversion",
+          "separate service label omitted",
+          "viewBox fitted to artwork"
+        ]
+      },
+      "library": "oci",
+      "name": "container-registry",
+      "theme": "default",
+      "bundled_sha256": "041ca733dd4864f5815842f9cf0c0b74ca9012f867ebb6184f98c8715e288e8d",
+      "color": null
+    }
+  ]
+}
