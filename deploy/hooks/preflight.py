@@ -90,6 +90,35 @@ def check_existing_network(client, inputs, tenancy_id):
         raise InputError("The existing subnet must be private, available, and part of the selected VCN.")
 
 
+def check_existing_application(client, context):
+    from oci.exceptions import ServiceError
+
+    inputs = context["inputs"]
+    application_id = inputs.get("existing_function_application_id", "")
+    if context["compartment_mode"] != "existing" or inputs["network_mode"] != "existing":
+        raise InputError("Reusing a Functions application requires an existing deployment compartment and private subnet.")
+    if not re.fullmatch(r"ocid1\.fnapp\.[a-z0-9.-]+", application_id):
+        raise InputError("Select an existing Functions application.")
+    try:
+        application = client.get_application(application_id).data
+    except ServiceError:
+        raise InputError("The selected Functions application could not be read in this region. Check FN_APP_READ.") from None
+    if application.compartment_id != context["compartment"] or application.lifecycle_state != "ACTIVE":
+        raise InputError("Select an active Functions application in the deployment compartment.")
+    if set(application.subnet_ids or []) != {inputs["existing_subnet_id"]}:
+        raise InputError("The selected private subnet must be the only subnet attached to the Functions application.")
+    if application.shape != "GENERIC_X86":
+        raise InputError("Select an x86 Functions application compatible with the Invoice Extractor image.")
+    if application.image_policy_config and application.image_policy_config.is_policy_enabled:
+        raise InputError("Select a Functions application that accepts the unsigned Invoice Extractor image.")
+    try:
+        functions = client.list_functions(application_id, display_name="extract", limit=1).data
+    except ServiceError:
+        raise InputError("Functions could not be listed in the selected application. Check FN_FUNCTION_LIST.") from None
+    if functions:
+        raise InputError("The selected Functions application already contains a function named extract.")
+
+
 def check_bucket(client, context):
     inputs = context["inputs"]
     namespace = client.get_namespace().data
@@ -118,6 +147,9 @@ def check_inputs(context):
     network_mode = inputs.get("network_mode")
     if network_mode not in ("new", "existing"):
         raise InputError("Select a new or an existing Function network.")
+    application_mode = inputs.get("function_application_mode", "new")
+    if application_mode not in ("new", "existing"):
+        raise InputError("Select a new or an existing Functions application.")
     if network_mode == "new":
         check_new_network(inputs)
     if inputs["autonomous_database_mode"] == "new":
@@ -131,6 +163,8 @@ def check_inputs(context):
     cfg = config_for(context["region"])
     if network_mode == "existing":
         check_existing_network(oci.core.VirtualNetworkClient(cfg), inputs, cfg["tenancy"])
+    if application_mode == "existing":
+        check_existing_application(oci.functions.FunctionsManagementClient(cfg), context)
     check_bucket(oci.object_storage.ObjectStorageClient(cfg), context)
     if inputs["autonomous_database_mode"] == "existing":
         import oracledb
@@ -152,7 +186,7 @@ def main():
     from deploy.hooks.database_target import DatabaseTargetError
     try:
         check_inputs(context_file("DEPLOY_STUDIO_CONTEXT"))
-        status, message = "passed", "Network, bucket, database settings and release files verified."
+        status, message = "passed", "Network, Functions settings, bucket, database settings and release files verified."
     except Exception as exc:
         # Keep OCI error bodies and Vault values outside the deployment history.
         status = "failed"

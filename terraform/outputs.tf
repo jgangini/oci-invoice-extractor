@@ -35,13 +35,13 @@ output "deploy_studio_resource_labels" {
     "oci_vault_secret.database[\"runtime\"]"       = "Function database secret"
     "oci_vault_secret.database[\"admin\"]"         = "Database administrator secret"
     "oci_database_autonomous_database.invoices[0]" = "Autonomous AI Database"
-    "oci_functions_application.invoices"           = "Invoice Functions application"
+    "oci_functions_application.invoices[0]"        = "Invoice Functions application"
     "oci_functions_function.extractor"             = "Invoice extraction function"
     "oci_identity_policy.delivery"                 = "Function invocation policy"
     "oci_identity_policy.source_objects"           = "Invoice object access policy"
     "oci_identity_policy.runtime_secret"           = "Function secret access policy"
     "oci_events_rule.ingest"                       = "ZIP ingestion rule"
-    "oci_logging_log_group.invoices"               = "Invoice log group"
-    "oci_logging_log.function"                     = "Function invocation log"
+    "oci_logging_log_group.invoices[0]"            = "Invoice log group"
+    "oci_logging_log.function[0]"                  = "Function invocation log"
   }
 }

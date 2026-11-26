@@ -61,6 +61,18 @@ variable "existing_autonomous_database_id" {
   type    = string
   default = ""
 }
+variable "function_application_mode" {
+  type    = string
+  default = "new"
+  validation {
+    condition     = contains(["new", "existing"], var.function_application_mode)
+    error_message = "Select a new or an existing Functions application."
+  }
+}
+variable "existing_function_application_id" {
+  type    = string
+  default = ""
+}
 variable "network_mode" {
   type    = string
   default = "new"

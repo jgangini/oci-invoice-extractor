@@ -1,5 +1,16 @@
 mock_provider "oci" {
   override_during = plan
+  mock_data "oci_artifacts_container_image" {
+    defaults = {
+      digest          = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      state           = "AVAILABLE"
+      repository_name = "test/invoice"
+      version         = "test"
+    }
+  }
+  mock_data "oci_identity_region_subscriptions" {
+    defaults = { region_subscriptions = [{ is_home_region = true, region_name = "us-ashburn-1" }] }
+  }
   mock_data "oci_core_services" {
     defaults = { services = [{ id = "osn", cidr_block = "all-iad-services-in-oracle-services-network" }] }
   }
@@ -18,6 +29,27 @@ mock_provider "oci" {
       prohibit_public_ip_on_vnic = true
     }
   }
+  mock_data "oci_kms_vault" {
+    defaults = {
+      id                  = "ocid1.vault.oc1.iad.test"
+      management_endpoint = "https://example-management.invalid"
+      state               = "ACTIVE"
+      vault_type          = "DEFAULT"
+    }
+  }
+  mock_data "oci_kms_key" {
+    defaults = {
+      id              = "ocid1.key.oc1.iad.test"
+      vault_id        = "ocid1.vault.oc1.iad.test"
+      state           = "ENABLED"
+      protection_mode = "HSM"
+      key_shape       = [{ algorithm = "AES", length = 32 }]
+    }
+  }
+}
+
+mock_provider "oci" {
+  alias = "identity"
 }
 
 variables {
@@ -45,7 +77,7 @@ run "new_network_uses_private_defaults" {
       toset(oci_core_vcn.extractor[0].cidr_blocks) == toset(["10.80.0.0/24"]) &&
       oci_core_subnet.functions[0].cidr_block == "10.80.0.0/25" &&
       oci_core_subnet.functions[0].prohibit_public_ip_on_vnic &&
-      toset(oci_functions_application.invoices.subnet_ids) == toset(["ocid1.subnet.oc1.iad.new"])
+      toset(oci_functions_application.invoices[0].subnet_ids) == toset(["ocid1.subnet.oc1.iad.new"])
     )
     error_message = "New mode must create the default private network and attach Functions to its subnet."
   }
@@ -88,7 +120,7 @@ run "reuse_network_without_managing_it" {
   }
   assert {
     condition = (
-      toset(oci_functions_application.invoices.subnet_ids) == toset([var.existing_subnet_id]) &&
+      toset(oci_functions_application.invoices[0].subnet_ids) == toset([var.existing_subnet_id]) &&
       oci_database_autonomous_database.invoices[0].whitelisted_ips == toset([var.existing_vcn_id, "192.0.2.128/32"])
     )
     error_message = "Functions must use the selected subnet and the new database ACL must use the selected VCN."
@@ -112,4 +144,38 @@ run "reject_subnet_from_other_vcn" {
     values          = { vcn_id = "ocid1.vcn.oc1.iad.other" }
   }
   expect_failures = [data.oci_core_subnet.existing]
+}
+
+# Terraform destroys this provider-mocked state at the end of the test file.
+run "reuse_functions_application" {
+  command = apply
+  variables {
+    function_application_mode        = "existing"
+    existing_function_application_id = "ocid1.fnapp.oc1.iad.shared"
+    network_mode                     = "existing"
+    existing_network_compartment_id  = "ocid1.compartment.oc1..network"
+    existing_vcn_id                  = "ocid1.vcn.oc1.iad.existing"
+    existing_subnet_id               = "ocid1.subnet.oc1.iad.existing"
+    vault_mode                       = "existing"
+    existing_vault_id                = "ocid1.vault.oc1.iad.test"
+    existing_key_id                  = "ocid1.key.oc1.iad.test"
+    access_cidrs                     = "192.0.2.128/32"
+  }
+  override_resource {
+    target = oci_database_autonomous_database.invoices[0]
+    values = {
+      connection_urls    = [{ apex_url = "https://db.example/ords/apex" }]
+      connection_strings = [{ profiles = [{ value = "example", tls_authentication = "SERVER", consumer_group = "LOW", host_format = "FQDN", protocol = "TCPS" }] }]
+    }
+  }
+  assert {
+    condition = (
+      oci_functions_function.extractor.application_id == var.existing_function_application_id &&
+      length(oci_functions_application.invoices) == 0 &&
+      length(oci_logging_log_group.invoices) == 0 &&
+      length(oci_logging_log.function) == 0 &&
+      output.function_id == oci_functions_function.extractor.id
+    )
+    error_message = "The shared application and its logging must stay outside the managed state, while the Function is owned by the deployment."
+  }
 }

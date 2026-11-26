@@ -68,6 +68,44 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaisesRegex(preflight.InputError, "already in use"):
             preflight.check_bucket(client, context)
 
+    def test_existing_functions_application_checks_scope_subnet_image_and_read_permissions(self):
+        from oci.exceptions import ServiceError
+
+        app_id = "ocid1.fnapp.oc1.iad.shared"
+        subnet_id = "ocid1.subnet.oc1.iad.private"
+        context = {"compartment_mode": "existing", "compartment": "ocid1.compartment.oc1..deployment",
+                   "inputs": {"network_mode": "existing", "existing_subnet_id": subnet_id,
+                              "existing_function_application_id": app_id}}
+        client = Mock()
+        application = SimpleNamespace(compartment_id=context["compartment"], lifecycle_state="ACTIVE",
+                                      subnet_ids=[subnet_id], shape="GENERIC_X86", image_policy_config=None)
+        client.get_application.return_value.data = application
+        client.list_functions.return_value.data = []
+        preflight.check_existing_application(client, context)
+        self.assertEqual(client.mock_calls, [call.get_application(app_id), call.list_functions(app_id, display_name="extract", limit=1)])
+        for field, value, message in (
+            ("compartment_id", "other", "deployment compartment"),
+            ("lifecycle_state", "INACTIVE", "active Functions"),
+            ("subnet_ids", ["other"], "only subnet"),
+            ("subnet_ids", [subnet_id, "other"], "only subnet"),
+            ("shape", "GENERIC_X86_ARM", "x86 Functions"),
+            ("image_policy_config", SimpleNamespace(is_policy_enabled=True), "unsigned"),
+        ):
+            with self.subTest(field=field, value=value), patch.object(application, field, value), self.assertRaisesRegex(preflight.InputError, message):
+                preflight.check_existing_application(client, context)
+        for method, permission in ((client.get_application, "FN_APP_READ"), (client.list_functions, "FN_FUNCTION_LIST")):
+            method.side_effect = ServiceError(404, "NotAuthorizedOrNotFound", {}, "synthetic error")
+            with self.assertRaisesRegex(preflight.InputError, permission):
+                preflight.check_existing_application(client, context)
+            method.side_effect = None
+        client.list_functions.return_value.data = [object()]
+        with self.assertRaisesRegex(preflight.InputError, "already contains"):
+            preflight.check_existing_application(client, context)
+        client.get_application.reset_mock()
+        with self.assertRaisesRegex(preflight.InputError, "existing deployment compartment and private subnet"):
+            preflight.check_existing_application(client, {**context, "compartment_mode": "new"})
+        client.get_application.assert_not_called()
+
     def test_deployment_form_supports_creation_and_reuse_by_name(self):
         manifest = json.loads((Path(__file__).resolve().parents[1] / "terraform/deploy-studio.json").read_text())
         fields = {field["name"]: field for field in manifest["form"]["fields"]}
@@ -85,6 +123,10 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(fields["access_cidrs"]["visible_when"], {"field": "autonomous_database_mode", "equals": "new"})
         self.assertEqual(manifest["form"]["email_access_fields"], ["apex_operator", "apex_operator_password"])
         self.assertEqual(fields["new_bucket_name"]["default"], manifest["project_id"])
+        self.assertEqual(fields["function_application_mode"]["default"], "new")
+        application = fields["existing_function_application_id"]
+        self.assertEqual(application["visible_when"], {"field": "function_application_mode", "equals": "existing"})
+        self.assertEqual(application["options_source"], "oci_active_functions_applications")
         email_fields = [field for service in manifest["email"]["services"] for field in service["fields"]]
         self.assertEqual([field["input"] for field in email_fields if "input" in field],
                          manifest["form"]["email_access_fields"])

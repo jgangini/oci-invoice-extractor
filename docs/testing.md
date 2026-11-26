@@ -11,7 +11,7 @@ terraform -chdir=terraform validate
 terraform -chdir=terraform test
 ```
 
-Python cubre la extracción, la previsualización, los controles de APEX y los hooks de instalación. Los planes de Terraform usan un proveedor simulado. Comprueban los modos de creación y reutilización de bucket, base y Vault sin aprovisionar recursos OCI.
+Python cubre la extracción, la previsualización, los controles de APEX y los hooks de instalación. Las pruebas de Terraform usan un proveedor simulado y comprueban los modos de creación y reutilización sin aprovisionar recursos OCI. La prueba `reuse_functions_application` comprueba que la Function pertenece al estado del despliegue y apunta a la aplicación compartida, que queda fuera del estado junto con sus logs. Terraform ejecuta el Destroy sobre ese estado simulado al terminar el archivo de pruebas.
 
 Al crear una base, Terraform solicita APEX y ORDS habilitados. OCI devuelve después su lista completa de herramientas. Un plan posterior debe conservar esa lista y evitar un `UpdateAutonomousDatabase` que solo vuelva a enviar APEX y ORDS.
 

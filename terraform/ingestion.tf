@@ -22,10 +22,18 @@ resource "oci_objectstorage_bucket" "invoices" {
 }
 
 locals {
-  image = data.oci_artifacts_container_image.release
+  image                       = data.oci_artifacts_container_image.release
+  create_function_application = var.function_application_mode == "new"
+  function_application_id     = local.create_function_application ? oci_functions_application.invoices[0].id : var.existing_function_application_id
+}
+
+moved {
+  from = oci_functions_application.invoices
+  to   = oci_functions_application.invoices[0]
 }
 
 resource "oci_functions_application" "invoices" {
+  count          = local.create_function_application ? 1 : 0
   compartment_id = var.compartment_ocid
   display_name   = local.name
   shape          = "GENERIC_X86"
@@ -33,7 +41,7 @@ resource "oci_functions_application" "invoices" {
 }
 
 resource "oci_functions_function" "extractor" {
-  application_id                   = oci_functions_application.invoices.id
+  application_id                   = local.function_application_id
   display_name                     = "extract"
   memory_in_mbs                    = 2048
   timeout_in_seconds               = 300
@@ -49,6 +57,12 @@ resource "oci_functions_function" "extractor" {
     SOURCE_PREFIX    = var.source_prefix
   }
   lifecycle {
+    precondition {
+      condition = local.create_function_application || (
+        var.network_mode == "existing" && can(regex("^ocid1[.]fnapp[.]", var.existing_function_application_id))
+      )
+      error_message = "Select an existing Functions application and its private subnet."
+    }
     precondition {
       condition     = local.image.digest == var.function_image_digest && local.image.state == "AVAILABLE" && try(length(local.image.version) > 0 && local.image.version != "latest", false)
       error_message = "The regional OCIR image must match the release digest and have a version tag."
@@ -111,14 +125,26 @@ resource "oci_events_rule" "ingest" {
   lifecycle { ignore_changes = [is_enabled] }
 }
 
+moved {
+  from = oci_logging_log_group.invoices
+  to   = oci_logging_log_group.invoices[0]
+}
+
+moved {
+  from = oci_logging_log.function
+  to   = oci_logging_log.function[0]
+}
+
 resource "oci_logging_log_group" "invoices" {
+  count          = local.create_function_application ? 1 : 0
   compartment_id = var.compartment_ocid
   display_name   = local.name
 }
 
 resource "oci_logging_log" "function" {
+  count              = local.create_function_application ? 1 : 0
   display_name       = "invocations"
-  log_group_id       = oci_logging_log_group.invoices.id
+  log_group_id       = oci_logging_log_group.invoices[0].id
   log_type           = "SERVICE"
   retention_duration = 30
   configuration {
@@ -126,7 +152,7 @@ resource "oci_logging_log" "function" {
       source_type = "OCISERVICE"
       service     = "functions"
       category    = "invoke"
-      resource    = oci_functions_application.invoices.id
+      resource    = local.function_application_id
     }
   }
 }
