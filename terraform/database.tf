@@ -51,6 +51,9 @@ resource "oci_database_autonomous_database" "invoices" {
     is_enabled = true
   }
   lifecycle {
+    # OCI returns its full list of tools after create. Resending the original subset fails as an unchanged update.
+    ignore_changes = [db_tools_details]
+
     precondition {
       condition     = trimspace(var.access_cidrs) != "" && var.existing_autonomous_database_id == ""
       error_message = "A new database requires a public IPv4 access range and no existing database selection."

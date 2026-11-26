@@ -112,6 +112,10 @@ run "new_database" {
     condition     = (oci_database_autonomous_database.invoices[0].db_version == "26ai" && oci_database_autonomous_database.invoices[0].db_workload == "OLTP" && oci_database_autonomous_database.invoices[0].compute_model == "ECPU" && oci_database_autonomous_database.invoices[0].compute_count == 4 && oci_database_autonomous_database.invoices[0].data_storage_size_in_tbs == 1)
     error_message = "The provisioned database must match the advertised 26ai OLTP, 4 ECPU, 1 TB profile."
   }
+  assert {
+    condition     = toset([for tool in oci_database_autonomous_database.invoices[0].db_tools_details : tool.name if tool.is_enabled]) == toset(["APEX", "ORDS"])
+    error_message = "Provisioning a new database must enable APEX and ORDS."
+  }
 }
 
 run "reuse_database" {

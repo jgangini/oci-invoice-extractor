@@ -13,6 +13,8 @@ terraform -chdir=terraform test
 
 Python cubre la extracción, la previsualización, los controles de APEX y los hooks de instalación. Los planes de Terraform usan un proveedor simulado. Comprueban los modos de creación y reutilización de bucket, base y Vault sin aprovisionar recursos OCI.
 
+Al crear una base, Terraform solicita APEX y ORDS habilitados. OCI devuelve después su lista completa de herramientas. Un plan posterior debe conservar esa lista y evitar un `UpdateAutonomousDatabase` que solo vuelva a enviar APEX y ORDS.
+
 `uv run --locked python scripts/sample_zip.py build/demo.zip` crea una factura reproducible. `uv run --locked python invoke_local.py fixtures/object-create.json --archive build/demo.zip` ejecuta el handler FDK con el catálogo del proyecto y muestra solo conteos. Usa otro nombre de ZIP y `--scan` para probar una entrada rasterizada.
 
 ## Aceptación en Deploy Studio
