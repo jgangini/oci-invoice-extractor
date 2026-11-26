@@ -37,6 +37,27 @@ run "default_vault_preserves_secret_names" {
   }
 }
 
+run "new_vault_key_waits_for_management_dns" {
+  command = plan
+  plan_options { target = [oci_kms_key.database] }
+  override_resource {
+    target          = oci_kms_vault.database[0]
+    override_during = plan
+    values = {
+      id                  = "ocid1.vault.oc1.ord.newvault"
+      management_endpoint = "https://newvault-management.kms.us-chicago-1.oci.oraclecloud.com"
+    }
+  }
+  assert {
+    condition = (
+      length(terraform_data.vault_endpoint_ready) == 1 &&
+      terraform_data.vault_endpoint_ready[0].triggers_replace.vault_id == oci_kms_vault.database[0].id &&
+      terraform_data.vault_endpoint_ready[0].triggers_replace.management_endpoint == oci_kms_key.database[0].management_endpoint
+    )
+    error_message = "Even a plan targeting only the new key must include the DNS check for its Vault endpoint."
+  }
+}
+
 run "reuse_vault" {
   command = plan
   variables {
@@ -51,8 +72,8 @@ run "reuse_vault" {
     values          = { id = "b549756c-aacb-4269-8371-99bdaaddeefa" }
   }
   assert {
-    condition     = length(oci_kms_vault.database) == 0 && length(oci_kms_key.database) == 0 && output.vault_id == var.existing_vault_id && output.vault_key_id == var.existing_key_id
-    error_message = "Reuse must expose the selected Vault and key without managing them."
+    condition     = length(oci_kms_vault.database) == 0 && length(oci_kms_key.database) == 0 && length(terraform_data.vault_endpoint_ready) == 0 && output.vault_id == var.existing_vault_id && output.vault_key_id == var.existing_key_id
+    error_message = "Reuse must expose the selected Vault and key without creating them or waiting for a new endpoint."
   }
   assert {
     condition = alltrue([for role, secret in oci_vault_secret.database :

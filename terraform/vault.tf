@@ -52,6 +52,24 @@ resource "oci_kms_vault" "database" {
   }
 }
 
+# A new Vault can report ACTIVE before its management endpoint is resolvable.
+resource "terraform_data" "vault_endpoint_ready" {
+  count = local.create_vault ? 1 : 0
+  triggers_replace = {
+    vault_id            = oci_kms_vault.database[0].id
+    management_endpoint = oci_kms_vault.database[0].management_endpoint
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/sh", "-c"]
+    command     = file("${path.module}/wait-for-kms-dns.sh")
+    quiet       = true
+    environment = {
+      KMS_MANAGEMENT_ENDPOINT = self.triggers_replace.management_endpoint
+    }
+  }
+}
+
 resource "oci_kms_key" "database" {
   count               = local.create_vault ? 1 : 0
   compartment_id      = var.compartment_ocid
@@ -62,6 +80,8 @@ resource "oci_kms_key" "database" {
     algorithm = "AES"
     length    = 32
   }
+
+  depends_on = [terraform_data.vault_endpoint_ready]
 }
 
 data "oci_kms_vault" "existing" {

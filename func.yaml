@@ -1,6 +1,6 @@
 schema_version: 20180708
 name: oci-invoice-extractor
-version: 0.3.9
+version: 0.3.10
 runtime: docker
 entrypoint: /opt/venv/bin/fdk /function/func.py handler
 memory: 2048

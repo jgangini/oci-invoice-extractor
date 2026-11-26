@@ -29,6 +29,7 @@ output "deploy_studio_resource_labels" {
     "oci_objectstorage_bucket.invoices[0]"         = "Invoice upload bucket"
     "oci_objectstorage_object.source_folder[0]"    = "ZIP upload folder"
     "oci_kms_vault.database[0]"                    = "Database Vault"
+    "terraform_data.vault_endpoint_ready[0]"       = "Vault management DNS readiness"
     "oci_kms_key.database[0]"                      = "Database encryption key"
     "terraform_data.secret_namespace[0]"           = "Deployment secret namespace"
     "oci_vault_secret.database[\"runtime\"]"       = "Function database secret"
