@@ -29,7 +29,7 @@ run "missing_existing_database_selection" {
   expect_failures = [data.oci_database_autonomous_database.existing]
 }
 
-run "new_database_allows_public_ipv4_without_an_acl" {
+run "new_database_allows_public_ipv4_through_an_explicit_acl" {
   command = plan
   plan_options {
     target = [oci_database_autonomous_database.invoices]
@@ -38,13 +38,22 @@ run "new_database_allows_public_ipv4_without_an_acl" {
     access_cidrs = "0.0.0.0/0"
   }
   override_resource {
+    target          = oci_core_vcn.extractor[0]
+    override_during = plan
+    values          = { id = "ocid1.vcn.oc1.test.functions" }
+  }
+  override_resource {
     target          = oci_database_autonomous_database.invoices[0]
     override_during = plan
     values          = { subnet_id = "" }
   }
   assert {
-    condition     = oci_database_autonomous_database.invoices[0].whitelisted_ips == null && oci_database_autonomous_database.invoices[0].subnet_id == ""
-    error_message = "Unrestricted IPv4 must use a public database endpoint with no IP ACL."
+    condition = (
+      oci_database_autonomous_database.invoices[0].is_mtls_connection_required == false &&
+      oci_database_autonomous_database.invoices[0].subnet_id == "" &&
+      oci_database_autonomous_database.invoices[0].whitelisted_ips == toset(["ocid1.vcn.oc1.test.functions", "0.0.0.0/0"])
+    )
+    error_message = "The public endpoint requires an explicit IPv4 and Functions VCN ACL for walletless TLS."
   }
 }
 
