@@ -492,15 +492,8 @@
         "title": "Oracle APEX",
         "fields": [
           {"label": "Access URL", "output": "application_url", "link": true},
-          {"label": "Initial APEX username", "input": "apex_operator"},
-          {"label": "Initial APEX password", "input": "apex_operator_password"}
-        ]
-      },
-      {
-        "title": "Object Storage",
-        "fields": [
-          {"label": "Bucket", "output": "bucket_name"},
-          {"label": "ZIP upload folder", "output": "source_prefix"}
+          {"label": "Username", "input": "apex_operator"},
+          {"label": "Password", "input": "apex_operator_password"}
         ]
       }
     ],

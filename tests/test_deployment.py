@@ -88,6 +88,15 @@ class DeploymentTests(unittest.TestCase):
         email_fields = [field for service in manifest["email"]["services"] for field in service["fields"]]
         self.assertEqual([field["input"] for field in email_fields if "input" in field],
                          manifest["form"]["email_access_fields"])
+        self.assertEqual(
+            [(service["title"], [(field["label"], field.get("output", field.get("input")))
+                                 for field in service["fields"]]) for service in manifest["email"]["services"]],
+            [
+                ("Oracle APEX", [("Access URL", "application_url"), ("Username", "apex_operator"),
+                                 ("Password", "apex_operator_password")]),
+            ],
+        )
+        self.assertTrue(all(field["output"] in manifest["outputs"] for field in email_fields if "output" in field))
         self.assertTrue(fields["apex_operator_password"]["secret"])
         self.assertEqual(fields["source_prefix"]["visible_when"], {"field": "bucket_mode", "equals": "existing"})
         self.assertEqual(fields["source_prefix"]["default"], "source/")

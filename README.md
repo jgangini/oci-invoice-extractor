@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/Licencia-MIT-165D63?style=flat-square" alt="Licencia MIT"></a>
-  <a href="https://github.com/jgangini/oci-invoice-extractor/releases/tag/v0.3.11"><img src="https://img.shields.io/badge/release-v0.3.11-007EC6?style=flat-square" alt="Release v0.3.11"></a>
+  <a href="https://github.com/jgangini/oci-invoice-extractor/releases/tag/v0.3.12"><img src="https://img.shields.io/badge/release-v0.3.12-007EC6?style=flat-square" alt="Release v0.3.12"></a>
 </p>
 
 <p align="center"><strong>Tecnologías</strong></p>
