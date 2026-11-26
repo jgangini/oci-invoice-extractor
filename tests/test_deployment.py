@@ -113,8 +113,7 @@ class DeploymentTests(unittest.TestCase):
         access = fields["access_cidrs"]
         self.assertEqual(access["default"], "0.0.0.0/0")
         self.assertTrue(access["required"])
-        self.assertIn("Deploy Studio worker and APEX users", access["help_text"])
-        self.assertIn("/32 for each individual IP", access["help_text"])
+        self.assertNotIn("help_text", access)
         mask = re.compile(access["pattern"])
         for value in (access["default"], "8.8.8.8/32", "8.8.8.8/32, 1.1.1.1/32, 1.1.1.0/24"):
             with self.subTest(value=value):

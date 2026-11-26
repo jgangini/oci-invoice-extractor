@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/Licencia-MIT-165D63?style=flat-square" alt="Licencia MIT"></a>
-  <a href="https://github.com/jgangini/oci-invoice-extractor/releases/tag/v0.3.7"><img src="https://img.shields.io/badge/release-v0.3.7-007EC6?style=flat-square" alt="Release v0.3.7"></a>
+  <a href="https://github.com/jgangini/oci-invoice-extractor/releases/tag/v0.3.8"><img src="https://img.shields.io/badge/release-v0.3.8-007EC6?style=flat-square" alt="Release v0.3.8"></a>
 </p>
 
 <p align="center"><strong>Tecnologías</strong></p>
@@ -41,7 +41,7 @@ Cada instalación utiliza los recursos, IAM, secretos y datos de la tenencia de 
 6. Definir el operador APEX y generar o introducir su contraseña. Pulsar **Validate** y luego **Deploy**. El worker prepara la imagen versionada de la release en el registro privado de destino. Resource Manager muestra el plan y el estado de sus recursos. El instalador crea el workspace **INVOICES**, instala la aplicación 100 y verifica que la Function lea su secreto de Vault y ejecute una consulta de solo lectura como `INV_FN`. OCI Events se habilita después de esa comprobación. Este flujo requiere una versión de Deploy Studio compatible con la preparación de imágenes y los hooks del manifiesto.
 7. En el correo del job terminado, abrir **Oracle APEX → Access URL** e iniciar sesión con el usuario y la contraseña iniciales. **Object Storage** indica el bucket y el prefijo para los ZIP. Usa el [tutorial de APEX](docs/tutorial.md) para comprobar la carga y la revisión con una factura sintética.
 
-Después del despliegue, el propietario puede restringir el endpoint público desde la lista de control de acceso de la base en OCI. Incluye la VCN de Functions y los rangos públicos del worker y de los usuarios de APEX. Una IP dinámica nueva requiere actualizar la ACL. [Controles de acceso de Autonomous AI Database](https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/access-control-rules-autonomous.html)
+Deploy Studio muestra un ejemplo breve cuando se introduce un CIDR inválido. Después del despliegue, el propietario puede restringir el endpoint público desde la lista de control de acceso de la base en OCI. Incluye la VCN de Functions y los rangos públicos del worker y de los usuarios de APEX. Una IP dinámica nueva requiere actualizar la ACL. [Controles de acceso de Autonomous AI Database](https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/access-control-rules-autonomous.html)
 
 La Function llega a los servicios de Oracle por la red privada. Para producción con usuarios desde cualquier red, Oracle describe un balanceador HTTPS público con dominio y certificado, Autonomous en endpoint privado y acceso privado del instalador. Ese perfil de red requiere infraestructura adicional. [Arquitectura de producción de Oracle](https://docs.oracle.com/en/solutions/deploy-autonomous-database-and-app/) · [Acceso APEX mediante un dominio propio](https://docs.oracle.com/en/cloud/paas/apex/gsadd/access-apex-using-vanity-url.html)
 
