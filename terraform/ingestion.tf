@@ -29,7 +29,7 @@ resource "oci_functions_application" "invoices" {
   compartment_id = var.compartment_ocid
   display_name   = local.name
   shape          = "GENERIC_X86"
-  subnet_ids     = [oci_core_subnet.functions.id]
+  subnet_ids     = [local.function_subnet_id]
 }
 
 resource "oci_functions_function" "extractor" {

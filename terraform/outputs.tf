@@ -21,11 +21,11 @@ output "function_invoke_url" { value = "${oci_functions_function.extractor.invok
 
 output "deploy_studio_resource_labels" {
   value = {
-    "oci_core_vcn.extractor"                       = "Function virtual network"
-    "oci_core_service_gateway.oracle"              = "Oracle Services Gateway"
-    "oci_core_route_table.private"                 = "Function route table"
-    "oci_core_security_list.private"               = "Function security list"
-    "oci_core_subnet.functions"                    = "Function subnet"
+    "oci_core_vcn.extractor[0]"                    = "Function virtual network"
+    "oci_core_service_gateway.oracle[0]"           = "Oracle Services Gateway"
+    "oci_core_route_table.private[0]"              = "Function route table"
+    "oci_core_security_list.private[0]"            = "Function security list"
+    "oci_core_subnet.functions[0]"                 = "Function subnet"
     "oci_objectstorage_bucket.invoices[0]"         = "Invoice upload bucket"
     "oci_objectstorage_object.source_folder[0]"    = "ZIP upload folder"
     "oci_kms_vault.database[0]"                    = "Database Vault"

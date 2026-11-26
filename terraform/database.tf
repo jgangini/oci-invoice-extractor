@@ -41,7 +41,7 @@ resource "oci_database_autonomous_database" "invoices" {
   license_model               = "LICENSE_INCLUDED"
   secret_id                   = oci_vault_secret.database["admin"].id
   is_mtls_connection_required = false
-  whitelisted_ips             = concat([oci_core_vcn.extractor.id], [for c in split(",", var.access_cidrs) : trimspace(c)])
+  whitelisted_ips             = concat([local.network_vcn_id], [for c in split(",", var.access_cidrs) : trimspace(c)])
   db_tools_details {
     name       = "APEX"
     is_enabled = true
@@ -72,7 +72,7 @@ data "oci_database_autonomous_database" "existing" {
     }
     postcondition {
       condition     = self.is_mtls_connection_required == false && !try(length(self.private_endpoint) > 0, false) && self.is_access_control_enabled != true && !try(length(self.whitelisted_ips) > 0, false)
-      error_message = "The existing database must already accept walletless TLS from this installation's new VCN and worker."
+      error_message = "The existing database must allow walletless TLS through its unrestricted public endpoint."
     }
     postcondition {
       condition     = alltrue([for tool in ["APEX", "ORDS"] : contains([for detail in self.db_tools_details : detail.name if detail.is_enabled], tool)]) && try(startswith(self.connection_urls[0].apex_url, "https://"), false)

@@ -134,17 +134,43 @@
           {
             "kind": "field",
             "name": "autonomous_database_admin_password"
+          },
+          {
+            "kind": "field",
+            "name": "access_cidrs",
+            "span": 2
           }
         ]
       },
       {
         "id": "network",
-        "title": "Network access",
+        "title": "Function network",
         "items": [
           {
             "kind": "field",
-            "name": "access_cidrs",
+            "name": "network_mode",
             "span": 2
+          },
+          {
+            "kind": "field",
+            "name": "new_vcn_cidr"
+          },
+          {
+            "kind": "field",
+            "name": "new_subnet_cidr"
+          },
+          {
+            "kind": "field",
+            "name": "existing_network_compartment_id",
+            "span": 2
+          },
+          {
+            "kind": "field",
+            "name": "existing_vcn_id"
+          },
+          {
+            "kind": "field",
+            "name": "existing_subnet_id"
           }
         ]
       },
@@ -302,8 +328,63 @@
         }
       },
       {
+        "name": "network_mode",
+        "label": "Network mode",
+        "type": "select",
+        "required": true,
+        "default": "new",
+        "options": [
+          {"value": "new", "label": "Create new VCN and subnet"},
+          {"value": "existing", "label": "Use existing VCN and subnet"}
+        ]
+      },
+      {
+        "name": "new_vcn_cidr",
+        "label": "VCN IPv4 CIDR",
+        "type": "text",
+        "required": true,
+        "default": "10.80.0.0/24",
+        "pattern": "^[0-9.]+/(1[6-9]|2[0-9]|30)$",
+        "visible_when": {"field": "network_mode", "equals": "new"}
+      },
+      {
+        "name": "new_subnet_cidr",
+        "label": "Private subnet IPv4 CIDR",
+        "type": "text",
+        "required": true,
+        "default": "10.80.0.0/25",
+        "pattern": "^[0-9.]+/(1[6-9]|2[0-9]|30)$",
+        "visible_when": {"field": "network_mode", "equals": "new"}
+      },
+      {
+        "name": "existing_network_compartment_id",
+        "label": "Network compartment",
+        "type": "select",
+        "required": true,
+        "options_source": "oci_network_compartments",
+        "visible_when": {"field": "network_mode", "equals": "existing"}
+      },
+      {
+        "name": "existing_vcn_id",
+        "label": "Existing VCN",
+        "type": "select",
+        "required": true,
+        "options_source": "oci_active_vcns",
+        "options_parent": "existing_network_compartment_id",
+        "visible_when": {"field": "network_mode", "equals": "existing"}
+      },
+      {
+        "name": "existing_subnet_id",
+        "label": "Existing private subnet",
+        "type": "select",
+        "required": true,
+        "options_source": "oci_private_subnets",
+        "options_parent": "existing_vcn_id",
+        "visible_when": {"field": "network_mode", "equals": "existing"}
+      },
+      {
         "name": "access_cidrs",
-        "label": "Allowed IP ranges",
+        "label": "Public IPv4 ranges for ADB and APEX",
         "type": "text",
         "required": true,
         "visible_when": {

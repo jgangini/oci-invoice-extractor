@@ -61,6 +61,52 @@ variable "existing_autonomous_database_id" {
   type    = string
   default = ""
 }
+variable "network_mode" {
+  type    = string
+  default = "new"
+  validation {
+    condition     = contains(["new", "existing"], var.network_mode)
+    error_message = "Select a new or an existing virtual cloud network."
+  }
+}
+variable "new_vcn_cidr" {
+  type    = string
+  default = "10.80.0.0/24"
+  validation {
+    condition = try(
+      can(cidrnetmask(var.new_vcn_cidr)) &&
+      can(regex("/(1[6-9]|2[0-9]|30)$", var.new_vcn_cidr)) &&
+      cidrsubnet(var.new_vcn_cidr, 0, 0) == var.new_vcn_cidr,
+      false
+    )
+    error_message = "The new VCN must use an IPv4 network CIDR from /16 to /30."
+  }
+}
+variable "new_subnet_cidr" {
+  type    = string
+  default = "10.80.0.0/25"
+  validation {
+    condition = try(
+      can(cidrnetmask(var.new_subnet_cidr)) &&
+      can(regex("/(1[6-9]|2[0-9]|30)$", var.new_subnet_cidr)) &&
+      cidrsubnet(var.new_subnet_cidr, 0, 0) == var.new_subnet_cidr,
+      false
+    )
+    error_message = "The new subnet must use an IPv4 network CIDR from /16 to /30."
+  }
+}
+variable "existing_network_compartment_id" {
+  type    = string
+  default = ""
+}
+variable "existing_vcn_id" {
+  type    = string
+  default = ""
+}
+variable "existing_subnet_id" {
+  type    = string
+  default = ""
+}
 variable "access_cidrs" {
   description = "Comma-separated approved IPv4 networks for Deploy Studio egress and APEX clients."
   type        = string

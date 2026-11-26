@@ -17,6 +17,33 @@ class DeploymentTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(preflight.InputError):
                 preflight.check_cidrs(value)
 
+    def test_new_function_network_uses_ipv4_networks_with_a_contained_subnet(self):
+        inputs = {"new_vcn_cidr": "10.80.0.0/24", "new_subnet_cidr": "10.80.0.0/25"}
+        preflight.check_new_network(inputs)
+        for value in ("10.80.0.32/26", "10.81.0.0/25", "10.80.0.0/31", "2001:db8::/24"):
+            with self.subTest(value=value), self.assertRaises(preflight.InputError):
+                preflight.check_new_network({**inputs, "new_subnet_cidr": value})
+
+    def test_existing_function_network_checks_vcn_compartment_and_private_subnet(self):
+        client = Mock()
+        inputs = {"existing_network_compartment_id": "ocid1.compartment.oc1..network",
+                  "existing_vcn_id": "ocid1.vcn.oc1.iad.network", "existing_subnet_id": "ocid1.subnet.oc1.iad.private"}
+        vcn = client.get_vcn.return_value.data
+        vcn.id = inputs["existing_vcn_id"]
+        vcn.compartment_id = inputs["existing_network_compartment_id"]
+        vcn.lifecycle_state = "AVAILABLE"
+        subnet = client.get_subnet.return_value.data
+        subnet.vcn_id = vcn.id
+        subnet.compartment_id = "ocid1.compartment.oc1..other"
+        subnet.lifecycle_state = "AVAILABLE"
+        subnet.prohibit_public_ip_on_vnic = True
+        preflight.check_existing_network(client, inputs, "ocid1.tenancy.oc1..test")
+        self.assertEqual(client.mock_calls[:2], [call.get_vcn(inputs["existing_vcn_id"]), call.get_subnet(inputs["existing_subnet_id"])])
+        for resource, attribute, value in ((vcn, "compartment_id", "other"), (vcn, "lifecycle_state", "TERMINATED"),
+                                           (subnet, "vcn_id", "other"), (subnet, "prohibit_public_ip_on_vnic", False)):
+            with self.subTest(attribute=attribute), patch.object(resource, attribute, value), self.assertRaises(preflight.InputError):
+                preflight.check_existing_network(client, inputs, "ocid1.tenancy.oc1..test")
+
     def test_bucket_reuse_requires_readable_private_event_source(self):
         client = Mock()
         bucket = client.get_bucket.return_value.data
@@ -51,7 +78,7 @@ class DeploymentTests(unittest.TestCase):
             self.assertEqual(fields[existing]["options_source"], source)
         self.assertTrue({"function_image_ocid", "function_image_digest", "admin_secret_ocid",
                          "runtime_secret_ocid"}.isdisjoint(fields))
-        self.assertEqual(fields["access_cidrs"]["label"], "Allowed IP ranges")
+        self.assertEqual(fields["access_cidrs"]["visible_when"], {"field": "autonomous_database_mode", "equals": "new"})
         self.assertEqual(manifest["form"]["email_access_fields"], ["apex_operator", "apex_operator_password"])
         self.assertEqual(fields["new_bucket_name"]["default"], manifest["project_id"])
         email_fields = [field for service in manifest["email"]["services"] for field in service["fields"]]
@@ -68,6 +95,21 @@ class DeploymentTests(unittest.TestCase):
             self.assertEqual(fields[name]["options_source"], source)
             self.assertEqual(fields[name]["visible_when"], {"field": "vault_mode", "equals": "existing"})
         self.assertEqual(manifest["pre_destroy"]["when"], {"field": "autonomous_database_mode", "equals": "existing"})
+
+    def test_function_network_form_defaults_and_inventory_dependencies(self):
+        manifest = json.loads((Path(__file__).resolve().parents[1] / "terraform/deploy-studio.json").read_text())
+        fields = {field["name"]: field for field in manifest["form"]["fields"]}
+        self.assertEqual(fields["network_mode"]["default"], "new")
+        self.assertEqual(fields["new_vcn_cidr"]["default"], "10.80.0.0/24")
+        self.assertEqual(fields["new_subnet_cidr"]["default"], "10.80.0.0/25")
+        for name in ("new_vcn_cidr", "new_subnet_cidr"):
+            self.assertEqual(fields[name]["visible_when"], {"field": "network_mode", "equals": "new"})
+        for name, source, parent in (("existing_network_compartment_id", "oci_network_compartments", None),
+                                      ("existing_vcn_id", "oci_active_vcns", "existing_network_compartment_id"),
+                                      ("existing_subnet_id", "oci_private_subnets", "existing_vcn_id")):
+            self.assertEqual(fields[name]["options_source"], source)
+            self.assertEqual(fields[name].get("options_parent"), parent)
+            self.assertEqual(fields[name]["visible_when"], {"field": "network_mode", "equals": "existing"})
 
     def test_oracle_statement_delimiters(self):
         script = "create table t (id number);\n/\nbegin\n null;\nend;\n/\n"

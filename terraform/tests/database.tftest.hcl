@@ -41,7 +41,7 @@ run "new_database" {
     access_cidrs                 = "192.0.2.128/32"
   }
   override_resource {
-    target          = oci_core_vcn.extractor
+    target          = oci_core_vcn.extractor[0]
     override_during = plan
     values          = { id = "ocid1.vcn.oc1.test.functions" }
   }

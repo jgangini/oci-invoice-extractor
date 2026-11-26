@@ -51,6 +51,43 @@ def check_cidrs(value):
         raise InputError("Allowed IP ranges must be public IPv4 networks from /24 to /32.")
 
 
+def network_cidr(value, label):
+    if isinstance(value, str) and re.fullmatch(r"[0-9.]+/(?:1[6-9]|2[0-9]|30)", value):
+        try:
+            return ipaddress.IPv4Network(value)
+        except ValueError:
+            pass
+    raise InputError(f"{label} must be an IPv4 network CIDR from /16 to /30.")
+
+
+def check_new_network(inputs):
+    vcn = network_cidr(inputs.get("new_vcn_cidr"), "VCN")
+    subnet = network_cidr(inputs.get("new_subnet_cidr"), "Private subnet")
+    if not subnet.subnet_of(vcn):
+        raise InputError("The new subnet CIDR must fit inside the new VCN CIDR.")
+
+
+def check_existing_network(client, inputs, tenancy_id):
+    from oci.exceptions import ServiceError
+
+    compartment = inputs.get("existing_network_compartment_id", "")
+    vcn_id = inputs.get("existing_vcn_id", "")
+    subnet_id = inputs.get("existing_subnet_id", "")
+    if not (compartment == tenancy_id or compartment.startswith("ocid1.compartment.")):
+        raise InputError("Select the compartment containing the existing VCN.")
+    if not (vcn_id.startswith("ocid1.vcn.") and subnet_id.startswith("ocid1.subnet.")):
+        raise InputError("Select an existing VCN and private subnet.")
+    try:
+        vcn = client.get_vcn(vcn_id).data
+        subnet = client.get_subnet(subnet_id).data
+    except ServiceError:
+        raise InputError("The selected VCN or subnet could not be read in this region.") from None
+    if vcn.compartment_id != compartment or vcn.lifecycle_state != "AVAILABLE":
+        raise InputError("The existing VCN must be available in the selected network compartment.")
+    if subnet.vcn_id != vcn.id or subnet.lifecycle_state != "AVAILABLE" or not subnet.prohibit_public_ip_on_vnic:
+        raise InputError("The existing subnet must be private, available, and part of the selected VCN.")
+
+
 def check_bucket(client, context):
     inputs = context["inputs"]
     namespace = client.get_namespace().data
@@ -76,6 +113,11 @@ def check_inputs(context):
     import oci
 
     inputs = context["inputs"]
+    network_mode = inputs.get("network_mode")
+    if network_mode not in ("new", "existing"):
+        raise InputError("Select a new or an existing Function network.")
+    if network_mode == "new":
+        check_new_network(inputs)
     if inputs["autonomous_database_mode"] == "new":
         check_cidrs(inputs["access_cidrs"])
         secret_inputs = context_file("DEPLOY_STUDIO_SECRETS")["inputs"]
@@ -85,6 +127,8 @@ def check_inputs(context):
         if not path.is_file() or not path.stat().st_size:
             raise InputError(f"Missing installation file: {path.name}.")
     cfg = config_for(context["region"])
+    if network_mode == "existing":
+        check_existing_network(oci.core.VirtualNetworkClient(cfg), inputs, cfg["tenancy"])
     check_bucket(oci.object_storage.ObjectStorageClient(cfg), context)
     if inputs["autonomous_database_mode"] == "existing":
         import oracledb
@@ -106,7 +150,7 @@ def main():
     from deploy.hooks.database_target import DatabaseTargetError
     try:
         check_inputs(context_file("DEPLOY_STUDIO_CONTEXT"))
-        status, message = "passed", "Bucket, database settings and release files verified."
+        status, message = "passed", "Network, bucket, database settings and release files verified."
     except Exception as exc:
         # Keep OCI error bodies and Vault values outside the deployment history.
         status = "failed"
