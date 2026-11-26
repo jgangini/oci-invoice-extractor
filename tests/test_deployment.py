@@ -96,9 +96,21 @@ class DeploymentTests(unittest.TestCase):
             self.assertEqual(fields[name]["visible_when"], {"field": "vault_mode", "equals": "existing"})
         self.assertEqual(manifest["pre_destroy"]["when"], {"field": "autonomous_database_mode", "equals": "existing"})
 
-    def test_function_network_form_defaults_and_inventory_dependencies(self):
+    def test_networking_form_defaults_inventory_and_public_ipv4(self):
         manifest = json.loads((Path(__file__).resolve().parents[1] / "terraform/deploy-studio.json").read_text())
         fields = {field["name"]: field for field in manifest["form"]["fields"]}
+        groups = manifest["form"]["groups"]
+        networking = next(group for group in groups if group["id"] == "network")
+        self.assertEqual(networking["title"], "Networking")
+        self.assertEqual(networking["items"][-1], {"kind": "field", "name": "access_cidrs", "span": 2})
+        self.assertEqual([group["id"] for group in groups if any(
+            item["name"] == "access_cidrs" for item in group["items"]
+        )], ["network"])
+        access = fields["access_cidrs"]
+        self.assertNotIn("default", access)
+        self.assertTrue(access["required"])
+        self.assertIn("Deploy Studio worker and APEX users", access["help_text"])
+        self.assertIn("/32 for a single IP", access["help_text"])
         self.assertEqual(fields["network_mode"]["default"], "new")
         self.assertEqual(fields["new_vcn_cidr"]["default"], "10.80.0.0/24")
         self.assertEqual(fields["new_subnet_cidr"]["default"], "10.80.0.0/25")

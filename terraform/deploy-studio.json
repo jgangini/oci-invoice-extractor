@@ -134,17 +134,12 @@
           {
             "kind": "field",
             "name": "autonomous_database_admin_password"
-          },
-          {
-            "kind": "field",
-            "name": "access_cidrs",
-            "span": 2
           }
         ]
       },
       {
         "id": "network",
-        "title": "Function network",
+        "title": "Networking",
         "items": [
           {
             "kind": "field",
@@ -171,6 +166,11 @@
           {
             "kind": "field",
             "name": "existing_subnet_id"
+          },
+          {
+            "kind": "field",
+            "name": "access_cidrs",
+            "span": 2
           }
         ]
       },
@@ -386,6 +386,7 @@
         "name": "access_cidrs",
         "label": "Public IPv4 ranges for ADB and APEX",
         "type": "text",
+        "help_text": "Enter the public egress CIDRs for the Deploy Studio worker and APEX users, separated by commas. Use /24 to /32, with /32 for a single IP.",
         "required": true,
         "visible_when": {
           "field": "autonomous_database_mode",
