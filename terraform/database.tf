@@ -26,7 +26,7 @@ moved {
   to   = oci_database_autonomous_database.invoices[0]
 }
 
-# Serverless enforces its ACL through whitelisted_ips. The explicit enable flag is specific to Cloud@Customer.
+# Serverless allows any source on its public endpoint when no ACL is configured.
 resource "oci_database_autonomous_database" "invoices" {
   count                       = local.create_database ? 1 : 0
   compartment_id              = var.compartment_ocid
@@ -41,7 +41,7 @@ resource "oci_database_autonomous_database" "invoices" {
   license_model               = "LICENSE_INCLUDED"
   secret_id                   = oci_vault_secret.database["admin"].id
   is_mtls_connection_required = false
-  whitelisted_ips             = concat([local.network_vcn_id], [for c in split(",", var.access_cidrs) : trimspace(c)])
+  whitelisted_ips             = trimspace(var.access_cidrs) == "0.0.0.0/0" ? null : concat([local.network_vcn_id], [for c in split(",", var.access_cidrs) : trimspace(c)])
   db_tools_details {
     name       = "APEX"
     is_enabled = true
@@ -52,8 +52,8 @@ resource "oci_database_autonomous_database" "invoices" {
   }
   lifecycle {
     precondition {
-      condition     = var.access_cidrs != "" && var.existing_autonomous_database_id == ""
-      error_message = "A new database requires approved worker and APEX networks and no existing database selection."
+      condition     = trimspace(var.access_cidrs) != "" && var.existing_autonomous_database_id == ""
+      error_message = "A new database requires a public IPv4 access range and no existing database selection."
     }
   }
 }

@@ -2,6 +2,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import sys
 from types import SimpleNamespace
 import unittest
@@ -12,8 +13,11 @@ from deploy.hooks import post_apply, preflight
 
 class DeploymentTests(unittest.TestCase):
     def test_public_ipv4_requires_an_explicit_cidr_prefix(self):
-        preflight.check_cidrs("8.8.8.8/32, 1.1.1.0/24")
-        for value in ("8.8.8.8", "1.1.1.0/255.255.255.0", "8.8.8.8/24", "10.0.0.0/24", "1.1.0.0/16"):
+        for value in ("0.0.0.0/0", "8.8.8.8/32, 1.1.1.0/24", "8.8.8.8/32,1.1.1.1/32"):
+            with self.subTest(value=value):
+                preflight.check_cidrs(value)
+        for value in ("", "8.8.8.8", "1.1.1.0/255.255.255.0", "8.8.8.8/24", "10.0.0.0/24",
+                      "1.1.0.0/16", "0.0.0.0/0,1.1.1.1/32", "256.1.1.1/32", "8.8.8.8/32,"):
             with self.subTest(value=value), self.assertRaises(preflight.InputError):
                 preflight.check_cidrs(value)
 
@@ -102,15 +106,22 @@ class DeploymentTests(unittest.TestCase):
         groups = manifest["form"]["groups"]
         networking = next(group for group in groups if group["id"] == "network")
         self.assertEqual(networking["title"], "Networking")
-        self.assertEqual(networking["items"][-1], {"kind": "field", "name": "access_cidrs", "span": 2})
+        self.assertEqual(networking["items"][-1], {"kind": "field", "name": "access_cidrs"})
         self.assertEqual([group["id"] for group in groups if any(
             item["name"] == "access_cidrs" for item in group["items"]
         )], ["network"])
         access = fields["access_cidrs"]
-        self.assertNotIn("default", access)
+        self.assertEqual(access["default"], "0.0.0.0/0")
         self.assertTrue(access["required"])
         self.assertIn("Deploy Studio worker and APEX users", access["help_text"])
-        self.assertIn("/32 for a single IP", access["help_text"])
+        self.assertIn("/32 for each individual IP", access["help_text"])
+        mask = re.compile(access["pattern"])
+        for value in (access["default"], "8.8.8.8/32", "8.8.8.8/32, 1.1.1.1/32, 1.1.1.0/24"):
+            with self.subTest(value=value):
+                self.assertIsNotNone(mask.fullmatch(value))
+        for value in ("8.8.8.8", "256.1.1.1/32", "8.8.8.8/33", "8.8.8.8/32,", "0.0.0.0/0,1.1.1.1/32"):
+            with self.subTest(value=value):
+                self.assertIsNone(mask.fullmatch(value))
         self.assertEqual(fields["network_mode"]["default"], "new")
         self.assertEqual(fields["new_vcn_cidr"]["default"], "10.80.0.0/24")
         self.assertEqual(fields["new_subnet_cidr"]["default"], "10.80.0.0/25")

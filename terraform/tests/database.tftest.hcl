@@ -29,6 +29,36 @@ run "missing_existing_database_selection" {
   expect_failures = [data.oci_database_autonomous_database.existing]
 }
 
+run "new_database_allows_public_ipv4_without_an_acl" {
+  command = plan
+  plan_options {
+    target = [oci_database_autonomous_database.invoices]
+  }
+  variables {
+    access_cidrs = "0.0.0.0/0"
+  }
+  override_resource {
+    target          = oci_database_autonomous_database.invoices[0]
+    override_during = plan
+    values          = { subnet_id = "" }
+  }
+  assert {
+    condition     = oci_database_autonomous_database.invoices[0].whitelisted_ips == null && oci_database_autonomous_database.invoices[0].subnet_id == ""
+    error_message = "Unrestricted IPv4 must use a public database endpoint with no IP ACL."
+  }
+}
+
+run "reject_mixed_public_and_restricted_ranges" {
+  command = plan
+  plan_options {
+    target = [oci_database_autonomous_database.invoices]
+  }
+  variables {
+    access_cidrs = "0.0.0.0/0, 192.0.2.128/32"
+  }
+  expect_failures = [var.access_cidrs]
+}
+
 run "new_database" {
   command = plan
   plan_options {
@@ -38,7 +68,7 @@ run "new_database" {
     autonomous_database_name     = "InvoicesQA"
     autonomous_database_version  = "26ai"
     autonomous_database_workload = "OLTP"
-    access_cidrs                 = "192.0.2.128/32"
+    access_cidrs                 = "192.0.2.128/32, 198.51.100.0/24"
   }
   override_resource {
     target          = oci_core_vcn.extractor[0]
@@ -57,7 +87,7 @@ run "new_database" {
   assert {
     condition = (
       oci_database_autonomous_database.invoices[0].is_access_control_enabled == false &&
-      oci_database_autonomous_database.invoices[0].whitelisted_ips == toset(["ocid1.vcn.oc1.test.functions", "192.0.2.128/32"])
+      oci_database_autonomous_database.invoices[0].whitelisted_ips == toset(["ocid1.vcn.oc1.test.functions", "192.0.2.128/32", "198.51.100.0/24"])
     )
     error_message = "Serverless must restrict access to the Functions VCN and approved IPv4 networks without enabling the Cloud@Customer ACL flag."
   }

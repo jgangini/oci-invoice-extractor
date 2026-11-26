@@ -108,12 +108,14 @@ variable "existing_subnet_id" {
   default = ""
 }
 variable "access_cidrs" {
-  description = "Comma-separated approved IPv4 networks for Deploy Studio egress and APEX clients."
+  description = "0.0.0.0/0 alone for public access, or comma-separated public IPv4 CIDRs for Deploy Studio and APEX."
   type        = string
   default     = ""
   validation {
-    condition     = var.access_cidrs == "" || alltrue([for c in split(",", var.access_cidrs) : can(cidrnetmask(trimspace(c))) && try(tonumber(split("/", c)[1]) >= 24, false)])
-    error_message = "Supply individual IPv4 networks /24 to /32. Include the worker egress."
+    condition = contains(["", "0.0.0.0/0"], trimspace(var.access_cidrs)) || alltrue([
+      for c in split(",", var.access_cidrs) : can(cidrnetmask(trimspace(c))) && try(tonumber(split("/", c)[1]) >= 24, false)
+    ])
+    error_message = "Use 0.0.0.0/0 by itself or supply IPv4 CIDRs /24 to /32 including the worker egress."
   }
 }
 variable "source_prefix" {

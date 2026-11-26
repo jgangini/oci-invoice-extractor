@@ -40,9 +40,11 @@ def password_valid(password, username):
 
 
 def check_cidrs(value):
+    if value.strip() == "0.0.0.0/0":
+        return
     items = [item.strip() for item in value.split(",")]
     if any(not re.fullmatch(r"[0-9.]+/(?:2[4-9]|3[0-2])", item) for item in items):
-        raise InputError("Enter public IPv4 networks with /24 to /32. Add /32 for a single IP address.")
+        raise InputError("Use 0.0.0.0/0 by itself or enter public IPv4 CIDRs /24 to /32 separated by commas.")
     try:
         networks = [ipaddress.IPv4Network(item) for item in items]
     except ValueError:
