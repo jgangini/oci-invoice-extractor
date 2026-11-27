@@ -77,8 +77,12 @@ resource "oci_identity_policy" "delivery" {
   description    = "Invoke the invoice function."
   statements = [
     "Allow service cloudEvents to use fn-invocation in compartment id ${var.compartment_ocid} where target.function.id='${oci_functions_function.extractor.id}'",
-    "Allow any-user to use fn-invocation in compartment id ${var.compartment_ocid} where all {request.principal.type='fnfunc', request.principal.id='${oci_functions_function.extractor.id}', target.function.id='${oci_functions_function.extractor.id}'}",
-    "Allow any-user to read fn-function in compartment id ${var.compartment_ocid} where all {request.principal.type='fnfunc', request.principal.id='${oci_functions_function.extractor.id}', target.function.id='${oci_functions_function.extractor.id}'}",
+    join(" ", [
+      "Allow any-user to use functions-family in compartment id ${var.compartment_ocid} where all {",
+      "request.principal.type='fnfunc', request.principal.id='${oci_functions_function.extractor.id}', target.function.id='${oci_functions_function.extractor.id}',",
+      "any {request.permission='FN_FUNCTION_READ', request.permission='FN_INVOCATION'}",
+      "}",
+    ]),
     "Allow any-user to use fn-invocation in compartment id ${var.compartment_ocid} where all {request.principal.type='autonomousdatabase', request.principal.id='${local.database_id}', target.function.id='${oci_functions_function.extractor.id}'}",
   ]
 }
@@ -88,10 +92,14 @@ resource "oci_identity_policy" "source_objects" {
   compartment_id = local.source_bucket.compartment_id
   name           = "${local.name}-source-objects"
   description    = "Read invoices from Functions and create uploads from APEX under the selected prefix."
-  statements = [
-    "Allow any-user to read objects in compartment id ${local.source_bucket.compartment_id} where all {request.principal.type='fnfunc', request.principal.id='${oci_functions_function.extractor.id}', target.bucket.name='${local.source_bucket.name}', target.object.name='${var.source_prefix}*'}",
-    "Allow any-user to manage objects in compartment id ${local.source_bucket.compartment_id} where all {request.principal.type='autonomousdatabase', request.principal.id='${local.database_id}', request.permission='OBJECT_CREATE', target.bucket.name='${local.source_bucket.name}', target.object.name='${var.source_prefix}*'}",
-  ]
+  statements = [join(" ", [
+    "Allow any-user to manage objects in compartment id ${local.source_bucket.compartment_id} where all {",
+    "target.bucket.name='${local.source_bucket.name}', target.object.name='${var.source_prefix}*',",
+    "any {",
+    "all {request.principal.type='fnfunc', request.principal.id='${oci_functions_function.extractor.id}', request.permission='OBJECT_READ'},",
+    "all {request.principal.type='autonomousdatabase', request.principal.id='${local.database_id}', request.permission='OBJECT_CREATE'}",
+    "}}",
+  ])]
 }
 
 resource "oci_identity_policy" "runtime_secret" {

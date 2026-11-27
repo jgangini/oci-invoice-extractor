@@ -13,6 +13,8 @@ terraform -chdir=terraform test
 
 Python cubre la extracción, la previsualización, los controles de APEX y los hooks de instalación. Las pruebas de Terraform usan un proveedor simulado y comprueban los modos de creación y reutilización sin aprovisionar recursos OCI. La prueba `reuse_functions_application` comprueba que la Function pertenece al estado del despliegue y apunta a la aplicación compartida, que queda fuera del estado junto con sus logs. Terraform ejecuta el Destroy sobre ese estado simulado al terminar el archivo de pruebas.
 
+La prueba `runtime_policies_scope_actions_to_each_principal` comprueba las cinco sentencias IAM que genera el plan y el compartimento de la política de objetos cuando se reutiliza un bucket externo al compartimento del despliegue. La autorización efectiva de las identidades de ejecución se comprueba en OCI.
+
 Al crear una base, Terraform solicita APEX y ORDS habilitados. OCI devuelve después su lista completa de herramientas. Un plan posterior debe conservar esa lista y evitar un `UpdateAutonomousDatabase` que solo vuelva a enviar APEX y ORDS.
 
 `uv run --locked python scripts/sample_zip.py build/demo.zip` crea una factura reproducible. `uv run --locked python invoke_local.py fixtures/object-create.json --archive build/demo.zip` ejecuta el handler FDK con el catálogo del proyecto y muestra solo conteos. Usa otro nombre de ZIP y `--scan` para probar una entrada rasterizada.

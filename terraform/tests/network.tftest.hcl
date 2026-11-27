@@ -146,6 +146,81 @@ run "reject_subnet_from_other_vcn" {
   expect_failures = [data.oci_core_subnet.existing]
 }
 
+run "runtime_policies_scope_actions_to_each_principal" {
+  command = plan
+
+  variables {
+    bucket_mode          = "existing"
+    existing_bucket_name = "private-uploads"
+    source_prefix        = "incoming/"
+    access_cidrs         = "192.0.2.128/32"
+  }
+
+  plan_options {
+    target = [oci_events_rule.ingest]
+  }
+
+  override_data {
+    target          = data.oci_objectstorage_bucket.existing[0]
+    override_during = plan
+    values = {
+      compartment_id        = "ocid1.compartment.oc1..storage"
+      access_type           = "NoPublicAccess"
+      object_events_enabled = true
+      storage_tier          = "Standard"
+      is_read_only          = false
+    }
+  }
+
+  override_resource {
+    target          = oci_database_autonomous_database.invoices[0]
+    override_during = plan
+    values = {
+      id                 = "ocid1.autonomousdatabase.oc1.iad.invoices"
+      connection_urls    = [{ apex_url = "https://db.example/ords/apex" }]
+      connection_strings = [{ profiles = [{ value = "example", tls_authentication = "SERVER", consumer_group = "LOW", host_format = "FQDN", protocol = "TCPS" }] }]
+    }
+  }
+
+  override_resource {
+    target          = oci_functions_function.extractor
+    override_during = plan
+    values          = { id = "ocid1.fnfunc.oc1.iad.extract" }
+  }
+
+  override_resource {
+    target          = oci_vault_secret.database["runtime"]
+    override_during = plan
+    values          = { id = "ocid1.vaultsecret.oc1.iad.runtime" }
+  }
+
+  assert {
+    condition = oci_identity_policy.delivery.statements == tolist([
+      "Allow service cloudEvents to use fn-invocation in compartment id ocid1.compartment.oc1..deployment where target.function.id='ocid1.fnfunc.oc1.iad.extract'",
+      "Allow any-user to use functions-family in compartment id ocid1.compartment.oc1..deployment where all { request.principal.type='fnfunc', request.principal.id='ocid1.fnfunc.oc1.iad.extract', target.function.id='ocid1.fnfunc.oc1.iad.extract', any {request.permission='FN_FUNCTION_READ', request.permission='FN_INVOCATION'} }",
+      "Allow any-user to use fn-invocation in compartment id ocid1.compartment.oc1..deployment where all {request.principal.type='autonomousdatabase', request.principal.id='ocid1.autonomousdatabase.oc1.iad.invoices', target.function.id='ocid1.fnfunc.oc1.iad.extract'}",
+    ])
+    error_message = "Events and ADB may only invoke the extractor, and the extractor may only read and invoke itself."
+  }
+
+  assert {
+    condition = (
+      oci_identity_policy.source_objects.compartment_id == "ocid1.compartment.oc1..storage" &&
+      oci_identity_policy.source_objects.statements == tolist([
+        "Allow any-user to manage objects in compartment id ocid1.compartment.oc1..storage where all { target.bucket.name='private-uploads', target.object.name='incoming/*', any { all {request.principal.type='fnfunc', request.principal.id='ocid1.fnfunc.oc1.iad.extract', request.permission='OBJECT_READ'}, all {request.principal.type='autonomousdatabase', request.principal.id='ocid1.autonomousdatabase.oc1.iad.invoices', request.permission='OBJECT_CREATE'} }}",
+      ])
+    )
+    error_message = "The bucket policy must allow only Function reads and ADB creates under the selected prefix in the actual bucket compartment."
+  }
+
+  assert {
+    condition = oci_identity_policy.runtime_secret.statements == tolist([
+      "Allow any-user to read secret-bundles in compartment id ocid1.compartment.oc1..deployment where all {request.principal.type='fnfunc', request.principal.id='ocid1.fnfunc.oc1.iad.extract', target.secret.id='ocid1.vaultsecret.oc1.iad.runtime'}",
+    ])
+    error_message = "Only the extractor may read the runtime secret through this policy."
+  }
+}
+
 # Terraform destroys this provider-mocked state at the end of the test file.
 run "reuse_functions_application" {
   command = apply
