@@ -454,13 +454,21 @@
   },
   "presentation": {
     "title": "OCI Invoice Extractor",
-    "summary": "Extract invoice fields from ZIP files with OCI Functions and review the results in Oracle APEX.",
+    "summary": "Upload ZIP batches of invoice PDFs to Object Storage. OCI Events triggers extraction from PDF text or scanned pages through OCR, and Autonomous AI Database stores the results. In Oracle APEX, track batch status, compare the extracted data with the original PDF, and record corrections with a reason.",
     "image": "/assets/oci-invoice-extractor-card.png",
     "image_alt": "Red scanner highlighting fields on an invoice",
     "tags": [
+      "Container Registry",
+      "Resource Manager",
+      "Virtual Cloud Network",
+      "Object Storage",
+      "Vault",
+      "Autonomous AI Database",
       "OCI Functions",
-      "APEX",
-      "Object Storage"
+      "Identity and Access Management (IAM)",
+      "Logging",
+      "Events",
+      "Oracle APEX"
     ],
     "href": "https://github.com/jgangini/oci-invoice-extractor"
   },
