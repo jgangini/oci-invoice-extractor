@@ -18,7 +18,7 @@ fi
 diagnose_dns() {
     case "$1" in
         2) echo 'Error: Vault DNS: the system resolver returned no address (getent exit 2).' ;;
-        124) echo 'Error: Vault DNS: the system lookup timed out after 5 seconds.' ;;
+        124) echo 'Error: Vault DNS: the system lookup timed out.' ;;
         *) printf 'Error: Vault DNS: the system lookup exited with status %s.\n' "$1" ;;
     esac
 
@@ -46,20 +46,29 @@ diagnose_dns() {
     esac
 }
 
-echo 'Waiting for the Vault management endpoint to resolve.'
-attempt=1
-while :; do
-    if timeout 5 getent ahosts "$hostname" >/dev/null 2>&1; then
-        break
+wait_seconds=900
+lookup_seconds=5
+poll_seconds=10
+deadline=$(($(date +%s) + wait_seconds))
+status=124
+
+printf 'Waiting up to %s seconds for the Vault management endpoint to resolve.\n' "$wait_seconds"
+while remaining=$((deadline - $(date +%s))); [ "$remaining" -gt 0 ]; do
+    lookup_limit=$lookup_seconds
+    [ "$remaining" -ge "$lookup_limit" ] || lookup_limit=$remaining
+    if timeout "$lookup_limit" getent ahosts "$hostname" >/dev/null 2>&1; then
+        echo 'Vault management DNS is ready.'
+        exit 0
     else
         status=$?
     fi
-    if [ "$attempt" -ge 30 ]; then
-        diagnose_dns "$status" >&2
-        echo 'Error: Vault management DNS did not resolve after 30 attempts. The key was not created.' >&2
-        exit 1
-    fi
-    attempt=$((attempt + 1))
-    sleep 5
+    remaining=$((deadline - $(date +%s)))
+    [ "$remaining" -gt 0 ] || break
+    pause=$poll_seconds
+    [ "$remaining" -ge "$pause" ] || pause=$remaining
+    sleep "$pause"
 done
-echo 'Vault management DNS is ready.'
+
+diagnose_dns "$status" >&2
+printf 'Error: Vault management DNS did not resolve within %s seconds. The key was not created.\n' "$wait_seconds" >&2
+exit 1
